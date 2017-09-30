@@ -139,21 +139,6 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
         socket->waitForBytesWritten(-1);
     }
 
-    /*
-    // Wait for some bytes to be written.
-    loop.connect(socket, &QSslSocket::bytesWritten, [&](qint64 byteswritten) {
-        // Subtract the bytes written now from the target number of bytes.
-        totalToWrite -= byteswritten;
-
-        Q_ASSERT(totalToWrite >= 0);
-
-        // Did we write all the bytes already?
-        if (totalToWrite == 0)
-            // Seems so. Break out of the QEventLoop.
-            loop.quit();
-    });
-    loop.exec();*/
-
     return true;
 }
 QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
@@ -266,6 +251,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
         QStringList availableOperations;
         availableOperations.append("getaddr");
+        availableOperations.append("readdir");
 
         if (availableOperations.contains(operParts[1])) {
             SendData(socket, "OPERATION OK");
@@ -306,6 +292,57 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 memcpy(&statData, &stbuf, sizeof(stbuf));
 
                 SendData(socket, (char*)(&statData), sizeof(stbuf));
+
+                sender->status = WaitingForOperation;
+            }
+                break;
+            }
+        } else if (sender->operation == "readdir") {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                QByteArray targetPath = ReadData(socket);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                DIR *dp;
+                struct dirent *de;
+
+                dp = opendir(finalPath.toUtf8().data());
+                if (dp == NULL) {
+                    res = -errno;
+
+                    char resultVal[18] = "";
+                    snprintf(resultVal, 18, "RETURN VALUE: %d", res);
+                    SendData(socket, (char*)(&resultVal));
+                    sender->status = WaitingForOperation;
+                    return;
+                }
+
+                QVector<struct dirent> dirents;
+
+                while ((de = readdir(dp)) != NULL) {
+                    dirents.append(*de);
+                }
+
+                struct dirent outDirents[dirents.length()];
+
+                for (int i = 0; i < dirents.length(); i++) {
+                    outDirents[i] = dirents[i];
+                }
+
+                closedir(dp);
+
+                char resultVal[18] = "";
+                snprintf(resultVal, 18, "RETURN VALUE: %d", res);
+                SendData(socket, (char*)(&resultVal));
+
+                SendData(socket, QString::number(dirents.length()).toUtf8().data());
+
+                SendData(socket, (char*)(&outDirents), sizeof(outDirents));
 
                 sender->status = WaitingForOperation;
             }

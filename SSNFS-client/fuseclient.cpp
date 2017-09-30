@@ -273,7 +273,7 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
     }
 
     // TODO: Log the HELLO msg.
-    qDebug() << "Ended handshake:" << timer.elapsed();
+    qDebug() << "getattr " << path << ": Ended handshake:" << timer.elapsed();
 
     SendData("OPERATION: getaddr");
 
@@ -317,14 +317,7 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
 
     memcpy(stbuf, statData.data(), statData.length());
 
-    qDebug() << "Closing" << timer.elapsed();
-
-    /*socket->close();
-    socket->waitForDisconnected(-1);
-
-    socket->deleteLater();*/
-
-    qDebug() << "Done" << timer.elapsed();
+    qDebug() << "getattr " << path << ": Done" << timer.elapsed();
 
     return res;
 }
@@ -332,29 +325,79 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
 int FuseClient::fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                            off_t offset, struct fuse_file_info *fi)
 {
-    QString actualPath(testBase);
-    actualPath.append(path);
+    QTime timer;
+    timer.start();
 
-    qDebug() << actualPath;
+    int res;
 
-    DIR *dp;
-    struct dirent *de;
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
 
-    dp = opendir(actualPath.toUtf8().data());
-    if (dp == NULL)
-        return -errno;
+    // TODO: Log the HELLO msg.
+    qDebug() << "readdir " << path << ": Ended handshake:" << timer.elapsed();
 
-    while ((de = readdir(dp)) != NULL) {
+    SendData("OPERATION: readdir");
+
+    QByteArray reply;
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    if (tr(reply) != "OPERATION OK") {
+        // TODO: Log the error.
+        return -1;
+    }
+
+    SendData(path);
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    if (tr(reply).startsWith("RETURN VALUE: ") == false) {
+        // TODO: Log the error.
+        return -1;
+    }
+
+    res = tr(reply).split(": ").at(1).toInt();
+
+    if (res != 0) {
+        return res;
+    }
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    int direntCount = reply.toInt();
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+
+    struct dirent *dirents = (struct dirent*)reply.data();
+
+    for (int i = 0; i < direntCount; i++) {
+        struct dirent de = dirents[i];
+
         struct stat st;
         memset(&st, 0, sizeof(st));
-        st.st_ino = de->d_ino;
-        st.st_mode = de->d_type << 12;
-        if (filler(buf, de->d_name, &st, 0))
+        st.st_ino = de.d_ino;
+        st.st_mode = de.d_type << 12;
+        if (filler(buf, de.d_name, &st, 0))
             break;
     }
 
-    closedir(dp);
-    return 0;
+    qDebug() << "readdir " << path << ": Done" << timer.elapsed();
+
+    return res;
 }
 
 int FuseClient::fs_open(const char *path, struct fuse_file_info *fi)
