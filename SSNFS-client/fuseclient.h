@@ -1,9 +1,18 @@
+/*
+ * SSNFS Client v0.1
+ *
+ * Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
+ *
+ * Copyright 2017 Maxwell Dreytser
+ */
+
 #ifndef FUSECLIENT_H
 #define FUSECLIENT_H
 
 #include <QObject>
 #include <QThread>
 #include <fuse.h>
+#include <QSslSocket>
 
 typedef struct stat fs_stat;
 
@@ -15,6 +24,13 @@ public:
 
 private:
     QThread myThread;
+
+    QSslSocket *socket = new QSslSocket(this);
+
+    QByteArray ReadData(int timeoutMsec = -1);
+    bool SendData(const char *data, signed long long length = -1);
+
+    int initSocket();
 
 signals:
 

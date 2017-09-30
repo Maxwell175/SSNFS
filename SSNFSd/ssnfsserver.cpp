@@ -1,3 +1,11 @@
+/*
+ * SSNFS Client v0.1
+ *
+ * Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
+ *
+ * Copyright 2017 Maxwell Dreytser
+ */
+
 #include "ssnfsserver.h"
 
 #include <sys/stat.h>
@@ -115,7 +123,7 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
     lengthBytes[2] = (dataLength >> 8) & 0xFF;
     lengthBytes[3] = dataLength & 0xFF;
 
-    QEventLoop loop;
+    //QEventLoop loop;
 
     // Write the length first.
     socket->write((char*)(&lengthBytes), 4);
@@ -127,6 +135,11 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
     // Get the total number of bytes that need to get written.
     unsigned long long totalToWrite = dataLength + 4;
 
+    while (socket->bytesToWrite() != 0) {
+        socket->waitForBytesWritten(-1);
+    }
+
+    /*
     // Wait for some bytes to be written.
     loop.connect(socket, &QSslSocket::bytesWritten, [&](qint64 byteswritten) {
         // Subtract the bytes written now from the target number of bytes.
@@ -139,7 +152,7 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
             // Seems so. Break out of the QEventLoop.
             loop.quit();
     });
-    loop.exec();
+    loop.exec();*/
 
     return true;
 }
@@ -147,86 +160,43 @@ QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
 {
     unsigned long int bytesRead = 0;
 
-    char lengthBytes[4] = "";
+    char lengthBytes[4];
 
-    QEventLoop lengthLoop;
+    while (bytesRead < 4) {
+        if (socket->bytesAvailable() == 0)
+            socket->waitForReadyRead(timeoutMsec);
 
-    auto readLength = [&]() {
-        // Read what data has come in.
         char currData[4 - bytesRead];
         int currRead = socket->read((char *)(&currData), 4 - bytesRead);
         for (int i = 0; i < currRead; i++) {
             lengthBytes[bytesRead + i] = currData[i];
         }
         bytesRead += currRead;
-
-        if (bytesRead >= 4) {
-            if (lengthLoop.isRunning())
-                lengthLoop.quit();
-            return true;
-        } else {
-            return false;
-        }
-    };
-
-    if (socket->bytesAvailable() > 0) {
-        bool gotAllLengthBytes = readLength();
-        if (!gotAllLengthBytes) {
-            lengthLoop.connect(socket, &QSslSocket::readyRead, readLength);
-            // TODO: Add timeout here!!!
-            lengthLoop.exec();
-        }
-    } else {
-        lengthLoop.connect(socket, &QSslSocket::readyRead, readLength);
-        // TODO: Add timeout here!!!
-        lengthLoop.exec();
     }
 
     // Get a number back from the bytes.
     unsigned long int length = 0;
-    length  = ((unsigned long int) lengthBytes[0]) << 24;
-    length |= ((unsigned long int) lengthBytes[1]) << 16;
-    length |= ((unsigned long int) lengthBytes[2]) << 8;
-    length |= ((unsigned long int) lengthBytes[3]);
+    length  = ((unsigned long int)(quint8)lengthBytes[0]) << 24;
+    length |= ((unsigned long int)(quint8)lengthBytes[1]) << 16;
+    length |= ((unsigned long int)(quint8)lengthBytes[2]) << 8;
+    length |= ((unsigned long int)(quint8)lengthBytes[3]);
 
     // Clear the temp variable.
     bytesRead = 0;
 
-    char data[length] = "";
+    char data[length];
 
-    QEventLoop dataLoop;
+    while (bytesRead < length) {
+        if (socket->bytesAvailable() == 0)
+            socket->waitForReadyRead(timeoutMsec);
 
-    auto readData = [&]() {
-        // Read what data has come in.
         char currData[length - bytesRead];
         int currRead = socket->read((char *)(&currData), length - bytesRead);
         for (int i = 0; i < currRead; i++) {
             data[bytesRead + i] = currData[i];
         }
         bytesRead += currRead;
-
-        if (bytesRead >= length) {
-            if (dataLoop.isRunning())
-                dataLoop.quit();
-            return true;
-        } else {
-            return false;
-        }
-    };
-
-    if (socket->bytesAvailable() > 0) {
-        bool gotAllLengthBytes = readData();
-        if (!gotAllLengthBytes) {
-            dataLoop.connect(socket, &QSslSocket::readyRead, readData);
-            // TODO: Add timeout here!!!
-            dataLoop.exec();
-        }
-    } else {
-        dataLoop.connect(socket, &QSslSocket::readyRead, readData);
-        // TODO: Add timeout here!!!
-        dataLoop.exec();
     }
-
 
     QByteArray output;
 
@@ -336,6 +306,8 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 memcpy(&statData, &stbuf, sizeof(stbuf));
 
                 SendData(socket, (char*)(&statData), sizeof(stbuf));
+
+                sender->status = WaitingForOperation;
             }
                 break;
             }

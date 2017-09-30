@@ -1,3 +1,11 @@
+/*
+ * SSNFS Client v0.1
+ *
+ * Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
+ *
+ * Copyright 2017 Maxwell Dreytser
+ */
+
 #include "fuseclient.h"
 
 #include <QCoreApplication>
@@ -10,11 +18,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
+#include <errno.h>
 
 #include "threadedclient.h"
 #include "clientmanager.h"
 
 const char *testBase = "/home/maxwell/fuse-test-base";
+
+const int maxRetryCount = 3;
+const int retryDelay = 10;
 
 FuseClient::FuseClient(QObject *parent) : QObject(parent)
 {
@@ -73,7 +85,7 @@ void FuseClient::started()
     fuse_main(argc, argv, &fs_oper, this);
 }
 
-bool SendData(QSslSocket *socket, const char *data, signed long long length = -1)
+bool FuseClient::SendData(const char *data, signed long long length)
 {
     // First, get the length of the data.
     unsigned long int inputLength;
@@ -94,7 +106,7 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
     lengthBytes[2] = (dataLength >> 8) & 0xFF;
     lengthBytes[3] = dataLength & 0xFF;
 
-    QEventLoop loop;
+    //QEventLoop loop;
 
     // Write the length first.
     socket->write((char*)(&lengthBytes), 4);
@@ -106,6 +118,11 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
     // Get the total number of bytes that need to get written.
     unsigned long long totalToWrite = dataLength + 4;
 
+    while (socket->bytesToWrite() != 0) {
+        socket->waitForBytesWritten(-1);
+    }
+
+    /*
     // Wait for some bytes to be written.
     loop.connect(socket, &QSslSocket::bytesWritten, [&](qint64 byteswritten) {
         // Subtract the bytes written now from the target number of bytes.
@@ -118,47 +135,26 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
             // Seems so. Break out of the QEventLoop.
             loop.quit();
     });
-    loop.exec();
+    loop.exec();*/
 
     return true;
 }
-QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
+QByteArray FuseClient::ReadData(int timeoutMsec)
 {
     unsigned long int bytesRead = 0;
 
-    char lengthBytes[4] = "";
+    char lengthBytes[4];
 
-    QEventLoop lengthLoop;
+    while (bytesRead < 4) {
+        if (socket->bytesAvailable() == 0)
+            socket->waitForReadyRead(timeoutMsec);
 
-    auto readLength = [&]() {
-        // Read what data has come in.
         char currData[4 - bytesRead];
         int currRead = socket->read((char *)(&currData), 4 - bytesRead);
         for (int i = 0; i < currRead; i++) {
             lengthBytes[bytesRead + i] = currData[i];
         }
         bytesRead += currRead;
-
-        if (bytesRead >= 4) {
-            if (lengthLoop.isRunning())
-                lengthLoop.quit();
-            return true;
-        } else {
-            return false;
-        }
-    };
-
-    if (socket->bytesAvailable() > 0) {
-        bool gotAllLengthBytes = readLength();
-        if (!gotAllLengthBytes) {
-            lengthLoop.connect(socket, &QSslSocket::readyRead, readLength);
-            // TODO: Add timeout here!!!
-            lengthLoop.exec();
-        }
-    } else {
-        lengthLoop.connect(socket, &QSslSocket::readyRead, readLength);
-        // TODO: Add timeout here!!!
-        lengthLoop.exec();
     }
 
     // Get a number back from the bytes.
@@ -171,41 +167,19 @@ QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
     // Clear the temp variable.
     bytesRead = 0;
 
-    char data[length] = "";
+    char data[length];
 
-    QEventLoop dataLoop;
+    while (bytesRead < length) {
+        if (socket->bytesAvailable() == 0)
+            socket->waitForReadyRead(timeoutMsec);
 
-    auto readData = [&]() {
-        // Read what data has come in.
         char currData[length - bytesRead];
         int currRead = socket->read((char *)(&currData), length - bytesRead);
         for (int i = 0; i < currRead; i++) {
             data[bytesRead + i] = currData[i];
         }
         bytesRead += currRead;
-
-        if (bytesRead >= length) {
-            if (dataLoop.isRunning())
-                dataLoop.quit();
-            return true;
-        } else {
-            return false;
-        }
-    };
-
-    if (socket->bytesAvailable() > 0) {
-        bool gotAllLengthBytes = readData();
-        if (!gotAllLengthBytes) {
-            dataLoop.connect(socket, &QSslSocket::readyRead, readData);
-            // TODO: Add timeout here!!!
-            dataLoop.exec();
-        }
-    } else {
-        dataLoop.connect(socket, &QSslSocket::readyRead, readData);
-        // TODO: Add timeout here!!!
-        dataLoop.exec();
     }
-
 
     QByteArray output;
 
@@ -218,6 +192,65 @@ QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
     output.remove(output.length() - 5, 5);
 
     return output;
+}
+
+int FuseClient::initSocket()
+{
+    socket->waitForDisconnected(1);
+    if (socket->isOpen() && socket->state() == QSslSocket::ConnectedState)
+        return 0;
+
+    int retryCounter = 0;
+    while (retryCounter < maxRetryCount) {
+
+        socket->deleteLater();
+
+        socket = new QSslSocket(this);
+
+        socket->setCaCertificates(QSslSocket::systemCaCertificates());
+        socket->setPeerVerifyMode(QSslSocket::VerifyNone);
+        socket->addCaCertificates("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt");
+
+        socket->connectToHostEncrypted("localhost", 2050);
+
+        if (socket->waitForEncrypted(-1) == false) {
+            retryCounter++;
+            QThread::currentThread()->sleep(retryDelay);
+            continue;
+        }
+
+        SendData(tr("HELLO: SSNFS client version %1").arg(_CLIENT_VERSION).toUtf8().data());
+        QByteArray serverHello = ReadData();
+
+        if (serverHello.isNull()) {
+            if (socket->isOpen()) {
+                socket->close();
+                socket->waitForDisconnected(-1);
+            }
+
+            retryCounter++;
+            QThread::currentThread()->sleep(retryDelay);
+            continue;
+        }
+
+        QString helloStr(serverHello);
+
+        if (!helloStr.startsWith("HELLO: ")) {
+            SendData("ERROR: Invalid response to HELLO!");
+            if (socket->isOpen()) {
+                socket->close();
+                socket->waitForDisconnected(-1);
+            }
+
+            retryCounter++;
+            QThread::currentThread()->sleep(retryDelay);
+            continue;
+        }
+
+        return 0;
+    }
+
+    return -1;
 }
 
 void *FuseClient::fs_init(struct fuse_conn_info *conn)
@@ -235,48 +268,18 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
 
     int res;
 
-    QSslSocket *socket = new QSslSocket(this);
-    socket->setCaCertificates(QSslSocket::systemCaCertificates());
-    socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-    socket->addCaCertificates("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt");
-
-    socket->connectToHostEncrypted("localhost", 2050);
-
-    socket->waitForEncrypted(-1);
-
-    SendData(socket, tr("HELLO: SSNFS client version %1").arg(_CLIENT_VERSION).toUtf8().data());
-    QByteArray serverHello = ReadData(socket);
-
-    if (serverHello.isNull()) {
-        if (socket->isOpen()) {
-            socket->close();
-            socket->waitForDisconnected(-1);
-        }
-        socket->deleteLater();
-
-        return -1;
+    if (initSocket() == -1) {
+        return -ECOMM;
     }
 
-    QString helloStr(serverHello);
-
-    if (!helloStr.startsWith("HELLO: ")) {
-        SendData(socket, "ERROR: Invalid response to HELLO!");
-        if (socket->isOpen()) {
-            socket->close();
-            socket->waitForDisconnected(-1);
-        }
-        socket->deleteLater();
-
-        return -1;
-    }
     // TODO: Log the HELLO msg.
     qDebug() << "Ended handshake:" << timer.elapsed();
 
-    SendData(socket, "OPERATION: getaddr");
+    SendData("OPERATION: getaddr");
 
     QByteArray reply;
 
-    reply = ReadData(socket);
+    reply = ReadData();
     if (reply.isNull()) {
         // TODO: Log the error.
         return -1;
@@ -286,9 +289,9 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
         return -1;
     }
 
-    SendData(socket, path);
+    SendData(path);
 
-    reply = ReadData(socket);
+    reply = ReadData();
     if (reply.isNull()) {
         // TODO: Log the error.
         return -1;
@@ -300,7 +303,7 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
 
     res = tr(reply).split(": ").at(1).toInt();
 
-    reply = ReadData(socket);
+    reply = ReadData();
     if (reply.isNull()) {
         // TODO: Log the error.
         return -1;
@@ -310,16 +313,16 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
         return -1;
     }
 
-    QByteArray statData = ReadData(socket);
+    QByteArray statData = ReadData();
 
     memcpy(stbuf, statData.data(), statData.length());
 
     qDebug() << "Closing" << timer.elapsed();
 
-    socket->close();
+    /*socket->close();
     socket->waitForDisconnected(-1);
 
-    socket->deleteLater();
+    socket->deleteLater();*/
 
     qDebug() << "Done" << timer.elapsed();
 

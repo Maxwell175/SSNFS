@@ -1,3 +1,10 @@
+# SSNFSd v0.1
+#
+# Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
+#
+# Copyright 2017 Maxwell Dreytser
+#
+
 QT += core
 QT -= gui
 
