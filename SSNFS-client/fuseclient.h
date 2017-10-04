@@ -23,6 +23,9 @@ public:
     explicit FuseClient(QObject *parent = 0);
 
 private:
+    QString mountPath;
+    QString caCertPath;
+
     QThread myThread;
 
     QSslSocket *socket = new QSslSocket(this);

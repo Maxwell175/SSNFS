@@ -21,8 +21,13 @@
 #include <limits>
 #include <errno.h>
 
+// For now the values are hardcoded. TODO: Config.
+
 SSNFSServer::SSNFSServer(QObject *parent)
-    : QTcpServer(parent), testBase("/home/maxwell/fuse-test-base")
+    : QTcpServer(parent), testBase("/home/maxwell/fuse-test-base"), // This is the directory that we will serve up.
+      privateKeyPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.key"),
+      certPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.crt"),
+      caCertPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt")
 {
 
 }
@@ -32,9 +37,9 @@ void SSNFSServer::incomingConnection(qintptr socketDescriptor)
     QSslSocket *socket = new QSslSocket();
 
     socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-    socket->addCaCertificates("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt");
-    socket->setLocalCertificate("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.crt");
-    socket->setPrivateKey("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.key");
+    socket->addCaCertificates(caCertPath);
+    socket->setLocalCertificate(certPath);
+    socket->setPrivateKey(privateKeyPath);
     //socket->setProtocol(QSsl::TlsV1SslV3);
 
     if (!socket->setSocketDescriptor(socketDescriptor)) {

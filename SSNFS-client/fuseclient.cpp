@@ -20,12 +20,15 @@
 #include <iostream>
 #include <errno.h>
 
-const char *testBase = "/home/maxwell/fuse-test-base";
+
 
 const int maxRetryCount = 3;
 const int retryDelay = 10;
 
-FuseClient::FuseClient(QObject *parent) : QObject(parent)
+// For now the values are hardcoded. TODO: Config.
+FuseClient::FuseClient(QObject *parent) : QObject(parent),
+    mountPath("/home/maxwell/fuse-test-mount"),
+    caCertPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt")
 {
     moveToThread(&myThread);
     connect(&myThread, SIGNAL(started()), this, SLOT(started()), Qt::QueuedConnection);
@@ -72,13 +75,12 @@ void FuseClient::started()
     fs_oper.open = fs_call_open;
     fs_oper.read = fs_call_read;
 
-    int argc = 5;
-    char *argv[5];
+    int argc = 4;
+    char *argv[4];
     argv[0] = QCoreApplication::instance()->arguments().at(0).toUtf8().data();
     argv[1] = "-f";
     argv[2] = "-s";
-    argv[3] = "-odirect_io";
-    argv[4] = "/home/maxwell/fuse-test-mount";
+    argv[3] = mountPath.toUtf8().data();
 
     fuse_main(argc, argv, &fs_oper, this);
 }
@@ -209,7 +211,7 @@ int FuseClient::initSocket()
 
         socket->setCaCertificates(QSslSocket::systemCaCertificates());
         socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-        socket->addCaCertificates("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt");
+        socket->addCaCertificates(caCertPath);
 
         socket->connectToHostEncrypted("localhost", 2050);
 
@@ -402,11 +404,6 @@ int FuseClient::fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int FuseClient::fs_open(const char *path, struct fuse_file_info *fi)
 {
-    QString actualPath(testBase);
-    actualPath.append(path);
-
-    //qDebug() << actualPath;
-
     QTime timer;
     timer.start();
 
@@ -458,10 +455,6 @@ int FuseClient::fs_open(const char *path, struct fuse_file_info *fi)
 int FuseClient::fs_read(const char *path, char *buf, size_t size, off_t offset,
                         struct fuse_file_info *fi)
 {
-    QString actualPath(testBase);
-    actualPath.append(path);
-
-
     QTime timer;
     timer.start();
 
@@ -471,7 +464,7 @@ int FuseClient::fs_read(const char *path, char *buf, size_t size, off_t offset,
     if (fi == NULL) {
         struct fuse_file_info openfi;
         openfi.flags = O_RDONLY;
-        fs_open(actualPath.toUtf8().data(), &openfi);
+        fs_open(path, &openfi);
         fd = openfi.fh;
     } else
         fd = fi->fh;

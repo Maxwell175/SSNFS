@@ -44,6 +44,9 @@ public:
 
 private:
     QString testBase;
+    QString privateKeyPath;
+    QString certPath;
+    QString caCertPath;
 
     QList<SSNFSClient*> clients;
 
