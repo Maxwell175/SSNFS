@@ -18,6 +18,9 @@
 
 #include <QEventLoop>
 
+#include <limits>
+#include <errno.h>
+
 SSNFSServer::SSNFSServer(QObject *parent)
     : QTcpServer(parent), testBase("/home/maxwell/fuse-test-base")
 {
@@ -143,13 +146,19 @@ bool SendData(QSslSocket *socket, const char *data, signed long long length = -1
 }
 QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
 {
+    QTime timer;
+    timer.start();
+
     unsigned long int bytesRead = 0;
 
     char lengthBytes[4];
 
     while (bytesRead < 4) {
         if (socket->bytesAvailable() == 0)
-            socket->waitForReadyRead(timeoutMsec);
+            socket->waitForReadyRead(1);
+
+        if (socket->bytesAvailable() > 0)
+            qDebug() << "got" << socket->bytesAvailable() << "length bytes:" << timer.elapsed();
 
         char currData[4 - bytesRead];
         int currRead = socket->read((char *)(&currData), 4 - bytesRead);
@@ -250,8 +259,10 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
         }
 
         QStringList availableOperations;
-        availableOperations.append("getaddr");
+        availableOperations.append("getattr");
         availableOperations.append("readdir");
+        availableOperations.append("open");
+        availableOperations.append("read");
 
         if (availableOperations.contains(operParts[1])) {
             SendData(socket, "OPERATION OK");
@@ -264,10 +275,14 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
         break;
     case InOperation:
     {
-        if (sender->operation == "getaddr") {
+        if (sender->operation == "getattr") {
             switch (sender->operationStep) {
             case 1:
             {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
                 QByteArray targetPath = ReadData(socket);
 
                 int res;
@@ -294,6 +309,8 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 SendData(socket, (char*)(&statData), sizeof(stbuf));
 
                 sender->status = WaitingForOperation;
+
+                sender->working = false;
             }
                 break;
             }
@@ -301,6 +318,10 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             switch (sender->operationStep) {
             case 1:
             {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
                 QByteArray targetPath = ReadData(socket);
 
                 int res;
@@ -321,6 +342,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     sender->status = WaitingForOperation;
                     return;
                 }
+                res = 0;
 
                 QVector<struct dirent> dirents;
 
@@ -345,6 +367,163 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 SendData(socket, (char*)(&outDirents), sizeof(outDirents));
 
                 sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == "open") {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                QByteArray targetPath = ReadData(socket);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                SendData(socket, "OK");
+
+                QByteArray flags = ReadData(socket);
+
+                res = open(finalPath.toUtf8().data(), flags.toInt());
+                if (res == -1)
+                    res = -errno;
+                else {
+                    int realFd = res;
+                    int FakeFd = -1;
+                    for (int i = 1; i < std::numeric_limits<int>::max(); i++) {
+                        if (sender->fds.keys().contains(i) == false) {
+                            FakeFd = i;
+                            break;
+                        }
+                    }
+                    if (FakeFd == -1)
+                        res = -EBADFD;
+                    else {
+                        sender->fds.insert(FakeFd, realFd);
+                        res = FakeFd;
+                    }
+                }
+
+                QByteArray result = QByteArray::number(res);
+                SendData(socket, result.data(), result.length());
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == "read") {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                sender->timer.restart();
+
+                // Get the file to read.
+                QByteArray targetPath = ReadData(socket);
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                sender->operationData.insert("path", finalPath);
+                sender->operationStep = 2;
+
+                qDebug() << "Done step 1:" << sender->timer.elapsed();
+            }
+                break;
+            case 2:
+            {
+                qDebug() << "Step 2 start:" << sender->timer.elapsed();
+
+                // Get the internal File Descriptor.
+                QByteArray fd = ReadData(socket);
+                int fakeFd = fd.toInt();
+
+                sender->operationData.insert("fakeFd", fakeFd);
+                sender->operationStep = 3;
+
+                qDebug() << "Done step 2:" << sender->timer.elapsed();
+            }
+                break;
+            case 3:
+            {
+                int readSize = ReadData(socket).toInt();
+
+                sender->operationData.insert("readSize", readSize);
+                sender->operationStep = 4;
+
+                qDebug() << "Done step 3:" << sender->timer.elapsed();
+            }
+                break;
+            case 4:
+            {
+                QString finalPath = sender->operationData.value("path").toString();
+                int fakeFd = sender->operationData.value("fakeFd").toInt();
+                int readSize = sender->operationData.value("readSize").toInt();
+                int readOffset = ReadData(socket).toInt();
+
+                int res;
+
+                void *readBuf = malloc(readSize);
+                int actuallyRead = -1;
+
+                // Find the corresponding actual File Descriptor
+                int realFd = sender->fds.value(fakeFd);
+
+                // We will now use the proc virtual filesystem to look up info about the File Descriptor.
+                QString procFdPath = tr("/proc/self/fd/%1").arg(realFd);
+
+                struct stat procFdInfo;
+
+                lstat(procFdPath.toUtf8().data(), &procFdInfo);
+
+                char actualFdFilePath[procFdInfo.st_size + 1];
+
+                ssize_t r = readlink(procFdPath.toUtf8().data(), (char*)(&actualFdFilePath), procFdInfo.st_size + 1);
+
+                if (r < 0) {
+                    res = -errno;
+                } else {
+                    actualFdFilePath[procFdInfo.st_size] = '\0';
+                    if (r > procFdInfo.st_size) {
+                        qWarning() << "The File Descriptor link in /proc increased in size" <<
+                                      "between lstat() and readlink()! old size:" << procFdInfo.st_size
+                                   << " new size:" << r << " readlink result:" << actualFdFilePath;
+                        res = -1;
+                    } else {
+                        if (finalPath == actualFdFilePath) {
+                            actuallyRead = pread(realFd, readBuf, readSize, readOffset);
+                            res = actuallyRead;
+                        } else {
+                            res = -EBADF;
+                        }
+                    }
+                }
+
+                QByteArray result = QByteArray::number(res);
+                SendData(socket, result.data(), result.length());
+
+                SendData(socket, (char*)(readBuf), actuallyRead);
+
+                qDebug() << "Done step 4:" << sender->timer.elapsed();
+
+                sender->operationData.clear();
+                sender->operationStep = 1;
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
             }
                 break;
             }

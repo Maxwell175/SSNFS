@@ -24,7 +24,10 @@ struct SSNFSClient {
     ClientStatus status;
     QString operation;
     int operationStep = 0;
-    QVector<void*> operationData;
+    bool working = false;
+    QMap<int, int> fds;
+    QMap<QString, QVariant> operationData;
+    QTime timer;
 
     bool operator == (const SSNFSClient &rhs) const {
         return (socket == rhs.socket) && (status == rhs.status);

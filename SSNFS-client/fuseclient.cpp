@@ -75,12 +75,13 @@ void FuseClient::started()
     fs_oper.open = fs_call_open;
     fs_oper.read = fs_call_read;
 
-    int argc = 4;
-    char *argv[4];
+    int argc = 5;
+    char *argv[5];
     argv[0] = QCoreApplication::instance()->arguments().at(0).toUtf8().data();
     argv[1] = "-f";
     argv[2] = "-s";
-    argv[3] = "/home/maxwell/fuse-test-mount";
+    argv[3] = "-odirect_io";
+    argv[4] = "/home/maxwell/fuse-test-mount";
 
     fuse_main(argc, argv, &fs_oper, this);
 }
@@ -114,6 +115,8 @@ bool FuseClient::SendData(const char *data, signed long long length)
     socket->write(data, inputLength);
     // Finally the pad bytes.
     socket->write("\xFF\xFF\xFF\xFF\xFF", 5);
+
+    socket->flush();
 
     // Get the total number of bytes that need to get written.
     unsigned long long totalToWrite = dataLength + 4;
@@ -275,7 +278,7 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
     // TODO: Log the HELLO msg.
     qDebug() << "getattr " << path << ": Ended handshake:" << timer.elapsed();
 
-    SendData("OPERATION: getaddr");
+    SendData("OPERATION: getattr");
 
     QByteArray reply;
 
@@ -405,16 +408,54 @@ int FuseClient::fs_open(const char *path, struct fuse_file_info *fi)
     QString actualPath(testBase);
     actualPath.append(path);
 
-    qDebug() << actualPath;
+    //qDebug() << actualPath;
+
+    QTime timer;
+    timer.start();
 
     int res;
 
-    res = open(actualPath.toUtf8().data(), fi->flags);
-    if (res == -1)
-        return -errno;
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
 
-    fi->fh = res;
-    return 0;
+    // TODO: Log the HELLO msg.
+    qDebug() << "open " << path << ": Ended handshake:" << timer.elapsed();
+
+    SendData("OPERATION: open");
+
+    QByteArray reply;
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    if (tr(reply) != "OPERATION OK") {
+        // TODO: Log the error.
+        return -1;
+    }
+
+    SendData(path);
+
+    reply = ReadData();
+
+    QByteArray flagsBytes = QByteArray::number(fi->flags);
+    SendData(flagsBytes.data(), flagsBytes.length());
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    res = reply.toInt();
+
+    if (res > 0)
+        fi->fh = res;
+
+    qDebug() << "open " << path << ": Done" << timer.elapsed();
+
+    return res > 0 ? 0 : res;
 }
 
 int FuseClient::fs_read(const char *path, char *buf, size_t size, off_t offset,
@@ -423,24 +464,88 @@ int FuseClient::fs_read(const char *path, char *buf, size_t size, off_t offset,
     QString actualPath(testBase);
     actualPath.append(path);
 
-    qDebug() << actualPath;
+
+    QTime timer;
+    timer.start();
 
     int fd;
     int res;
 
-    if(fi == NULL)
-        fd = open(actualPath.toUtf8().data(), O_RDONLY);
-    else
+    if (fi == NULL) {
+        struct fuse_file_info openfi;
+        openfi.flags = O_RDONLY;
+        fs_open(actualPath.toUtf8().data(), &openfi);
+        fd = openfi.fh;
+    } else
         fd = fi->fh;
 
     if (fd == -1)
         return -errno;
 
-    res = pread(fd, buf, size, offset);
-    if (res == -1)
-        res = -errno;
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
 
-    if(fi == NULL)
-        close(fd);
+    qDebug() << "read " << path << ": Ended handshake:" << timer.elapsed();
+
+    SendData("OPERATION: read");
+
+    QByteArray reply;
+
+    reply = ReadData();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    if (tr(reply) != "OPERATION OK") {
+        // TODO: Log the error.
+        return -1;
+    }
+
+    qDebug() << "read " << path << ": Sending data:" << timer.elapsed();
+
+    SendData(path);
+
+    socket->flush();
+    socket->waitForBytesWritten(1);
+
+    QByteArray fdBytes = QByteArray::number(fd);
+    SendData(fdBytes.data(), fdBytes.length());
+
+    socket->flush();
+    socket->waitForBytesWritten(1);
+
+    QByteArray sizeBytes = QByteArray::number((qulonglong)size);
+    SendData(sizeBytes.data(), sizeBytes.length());
+
+    socket->flush();
+    socket->waitForBytesWritten(1);
+
+    QByteArray offsetBytes = QByteArray::number((qulonglong)offset);
+    SendData(offsetBytes.data(), offsetBytes.length());
+
+    socket->flush();
+    socket->waitForBytesWritten(1);
+
+    socket->flush();
+    socket->waitForBytesWritten(1);
+
+    qDebug() << "read " << path << ": Waiting for reply:" << timer.elapsed();
+
+    reply = ReadData();
+    qDebug() << "read " << path << ": Got first reply:" << timer.elapsed();
+    if (reply.isNull()) {
+        // TODO: Log the error.
+        return -1;
+    }
+    res = reply.toInt();
+
+    if (res >= 0) {
+        reply = ReadData();
+        memcpy(buf, reply.data(), reply.length());
+    }
+
+    qDebug() << "read " << path << ":" << res <<"bytes Done:" << timer.elapsed();
+
     return res;
 }
