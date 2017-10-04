@@ -20,9 +20,6 @@
 #include <iostream>
 #include <errno.h>
 
-#include "threadedclient.h"
-#include "clientmanager.h"
-
 const char *testBase = "/home/maxwell/fuse-test-base";
 
 const int maxRetryCount = 3;
