@@ -24,7 +24,8 @@ SOURCES += main.cpp \
 #    ssnfsrunnable.cpp
 
 HEADERS += \
-    ssnfsserver.h
+    ssnfsserver.h \
+    ../common.h
 #    ssnfsthread.h \
 
 

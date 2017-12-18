@@ -20,7 +20,9 @@
 #include <iostream>
 #include <errno.h>
 
-
+#define STR_EXPAND(tok) #tok
+#define STR(tok) STR_EXPAND(tok)
+#define HELLO_STR "SSNFS client version " STR(_CLIENT_VERSION)
 
 const int maxRetryCount = 3;
 const int retryDelay = 10;
@@ -85,120 +87,9 @@ void FuseClient::started()
     fuse_main(argc, argv, &fs_oper, this);
 }
 
-bool FuseClient::SendData(const char *data, signed long long length)
-{
-    // First, get the length of the data.
-    unsigned long int inputLength;
-    if (length < 0) {
-        // + 1 is for the null terminator.
-        inputLength = strlen(data);
-    } else {
-        inputLength = length;
-    }
-
-    // Account for 5 extra pad bytes at the end.
-    unsigned long int dataLength = inputLength + 5;
-
-    // Convert it into bytes.
-    unsigned char lengthBytes[4];
-    lengthBytes[0] = (dataLength >> 24) & 0xFF;
-    lengthBytes[1] = (dataLength >> 16) & 0xFF;
-    lengthBytes[2] = (dataLength >> 8) & 0xFF;
-    lengthBytes[3] = dataLength & 0xFF;
-
-    //QEventLoop loop;
-
-    // Write the length first.
-    socket->write((char*)(&lengthBytes), 4);
-    // Then the actual data.
-    socket->write(data, inputLength);
-    // Finally the pad bytes.
-    socket->write("\xFF\xFF\xFF\xFF\xFF", 5);
-
-    socket->flush();
-
-    // Get the total number of bytes that need to get written.
-    unsigned long long totalToWrite = dataLength + 4;
-
-    while (socket->bytesToWrite() != 0) {
-        socket->waitForBytesWritten(-1);
-    }
-
-    /*
-    // Wait for some bytes to be written.
-    loop.connect(socket, &QSslSocket::bytesWritten, [&](qint64 byteswritten) {
-        // Subtract the bytes written now from the target number of bytes.
-        totalToWrite -= byteswritten;
-
-        Q_ASSERT(totalToWrite >= 0);
-
-        // Did we write all the bytes already?
-        if (totalToWrite == 0)
-            // Seems so. Break out of the QEventLoop.
-            loop.quit();
-    });
-    loop.exec();*/
-
-    return true;
-}
-QByteArray FuseClient::ReadData(int timeoutMsec)
-{
-    unsigned long int bytesRead = 0;
-
-    char lengthBytes[4];
-
-    while (bytesRead < 4) {
-        if (socket->bytesAvailable() == 0)
-            socket->waitForReadyRead(timeoutMsec);
-
-        char currData[4 - bytesRead];
-        int currRead = socket->read((char *)(&currData), 4 - bytesRead);
-        for (int i = 0; i < currRead; i++) {
-            lengthBytes[bytesRead + i] = currData[i];
-        }
-        bytesRead += currRead;
-    }
-
-    // Get a number back from the bytes.
-    unsigned long int length = 0;
-    length  = ((unsigned long int)(quint8)lengthBytes[0]) << 24;
-    length |= ((unsigned long int)(quint8)lengthBytes[1]) << 16;
-    length |= ((unsigned long int)(quint8)lengthBytes[2]) << 8;
-    length |= ((unsigned long int)(quint8)lengthBytes[3]);
-
-    // Clear the temp variable.
-    bytesRead = 0;
-
-    char data[length];
-
-    while (bytesRead < length) {
-        if (socket->bytesAvailable() == 0)
-            socket->waitForReadyRead(timeoutMsec);
-
-        char currData[length - bytesRead];
-        int currRead = socket->read((char *)(&currData), length - bytesRead);
-        for (int i = 0; i < currRead; i++) {
-            data[bytesRead + i] = currData[i];
-        }
-        bytesRead += currRead;
-    }
-
-    QByteArray output;
-
-    // Copy to output array.
-    for (unsigned long int i = 0; i < length; i++) {
-        output.append(data[i]);
-    }
-
-    // Strip the pad chars aka last 5 bytes.
-    output.remove(output.length() - 5, 5);
-
-    return output;
-}
-
 int FuseClient::initSocket()
 {
-    socket->waitForDisconnected(1);
+    socket->waitForDisconnected(0);
     if (socket->isOpen() && socket->state() == QSslSocket::ConnectedState)
         return 0;
 
@@ -221,8 +112,24 @@ int FuseClient::initSocket()
             continue;
         }
 
-        SendData(tr("HELLO: SSNFS client version %1").arg(_CLIENT_VERSION).toUtf8().data());
-        QByteArray serverHello = ReadData();
+        socket->write(Common::getBytes(Common::Hello));
+        socket->write(Common::getBytes((int32_t)strlen(HELLO_STR)));
+        socket->write(HELLO_STR);
+        socket->waitForBytesWritten(-1);
+
+        socket->waitForReadyRead(-1);
+        if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::Hello) {
+            if (socket->isOpen()) {
+                socket->close();
+                socket->waitForDisconnected(-1);
+            }
+
+            retryCounter++;
+            QThread::currentThread()->sleep(retryDelay);
+            continue;
+        }
+        int32_t serverHelloLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+        QByteArray serverHello = Common::readExactBytes(socket, serverHelloLen);
 
         if (serverHello.isNull()) {
             if (socket->isOpen()) {
@@ -236,18 +143,7 @@ int FuseClient::initSocket()
         }
 
         QString helloStr(serverHello);
-
-        if (!helloStr.startsWith("HELLO: ")) {
-            SendData("ERROR: Invalid response to HELLO!");
-            if (socket->isOpen()) {
-                socket->close();
-                socket->waitForDisconnected(-1);
-            }
-
-            retryCounter++;
-            QThread::currentThread()->sleep(retryDelay);
-            continue;
-        }
+        // TODO: Log this?
 
         return 0;
     }
@@ -277,45 +173,22 @@ int FuseClient::fs_getattr(const char *path, fs_stat *stbuf)
     // TODO: Log the HELLO msg.
     qDebug() << "getattr " << path << ": Ended handshake:" << timer.elapsed();
 
-    SendData("OPERATION: getattr");
+    socket->write(Common::getBytes(Common::getattr));
+    socket->waitForBytesWritten(-1);
 
-    QByteArray reply;
-
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply) != "OPERATION OK") {
-        // TODO: Log the error.
-        return -1;
+    Common::ResultCode result = Common::getResultFromBytes(Common::readExactBytes(socket, 1));
+    if (result != Common::OK) {
+        qDebug() << "Error during getattr" << path;
+        return -ECOMM;
     }
 
-    SendData(path);
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+    socket->waitForBytesWritten(-1);
 
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply).startsWith("RETURN VALUE: ") == false) {
-        // TODO: Log the error.
-        return -1;
-    }
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-    res = tr(reply).split(": ").at(1).toInt();
-
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply) != "RETURN PARAM: stbuf") {
-        // TODO: Log the error.
-        return -1;
-    }
-
-    QByteArray statData = ReadData();
+    QByteArray statData = Common::readExactBytes(socket, sizeof(struct stat));
 
     memcpy(stbuf, statData.data(), statData.length());
 
@@ -339,50 +212,26 @@ int FuseClient::fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // TODO: Log the HELLO msg.
     qDebug() << "readdir " << path << ": Ended handshake:" << timer.elapsed();
 
-    SendData("OPERATION: readdir");
+    socket->write(Common::getBytes(Common::readdir));
+    socket->waitForBytesWritten(-1);
 
-    QByteArray reply;
-
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply) != "OPERATION OK") {
-        // TODO: Log the error.
-        return -1;
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during readdir" << path;
+        return -ECOMM;
     }
 
-    SendData(path);
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+    socket->waitForBytesWritten(-1);
 
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply).startsWith("RETURN VALUE: ") == false) {
-        // TODO: Log the error.
-        return -1;
-    }
-
-    res = tr(reply).split(": ").at(1).toInt();
-
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
     if (res != 0) {
         return res;
     }
 
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    int direntCount = reply.toInt();
+    int direntCount = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
+    QByteArray reply = Common::readExactBytes(socket, sizeof(struct dirent) * direntCount);
 
     struct dirent *dirents = (struct dirent*)reply.data();
 
@@ -416,33 +265,21 @@ int FuseClient::fs_open(const char *path, struct fuse_file_info *fi)
     // TODO: Log the HELLO msg.
     qDebug() << "open " << path << ": Ended handshake:" << timer.elapsed();
 
-    SendData("OPERATION: open");
+    socket->write(Common::getBytes(Common::open));
+    socket->waitForBytesWritten(-1);
 
-    QByteArray reply;
-
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply) != "OPERATION OK") {
-        // TODO: Log the error.
-        return -1;
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during open" << path;
+        return -ECOMM;
     }
 
-    SendData(path);
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
 
-    reply = ReadData();
+    socket->write(Common::getBytes(fi->flags));
+    socket->waitForBytesWritten(-1);
 
-    QByteArray flagsBytes = QByteArray::number(fi->flags);
-    SendData(flagsBytes.data(), flagsBytes.length());
-
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    res = reply.toInt();
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
     if (res > 0)
         fi->fh = res;
@@ -472,66 +309,39 @@ int FuseClient::fs_read(const char *path, char *buf, size_t size, off_t offset,
     if (fd == -1)
         return -errno;
 
+    qDebug() << "read " << path << ": Before init:" << timer.elapsed();
+
     if (initSocket() == -1) {
         return -ECOMM;
     }
 
     qDebug() << "read " << path << ": Ended handshake:" << timer.elapsed();
 
-    SendData("OPERATION: read");
+    socket->write(Common::getBytes(Common::read));
+    socket->waitForBytesWritten(-1);
 
-    QByteArray reply;
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during read" << path;
+        return -ECOMM;
+    }
 
-    reply = ReadData();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    if (tr(reply) != "OPERATION OK") {
-        // TODO: Log the error.
-        return -1;
-    }
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
 
     qDebug() << "read " << path << ": Sending data:" << timer.elapsed();
 
-    SendData(path);
+    socket->write(Common::getBytes(fd));
 
-    socket->flush();
-    socket->waitForBytesWritten(1);
+    socket->write(Common::getBytes((int32_t)size));
 
-    QByteArray fdBytes = QByteArray::number(fd);
-    SendData(fdBytes.data(), fdBytes.length());
-
-    socket->flush();
-    socket->waitForBytesWritten(1);
-
-    QByteArray sizeBytes = QByteArray::number((qulonglong)size);
-    SendData(sizeBytes.data(), sizeBytes.length());
-
-    socket->flush();
-    socket->waitForBytesWritten(1);
-
-    QByteArray offsetBytes = QByteArray::number((qulonglong)offset);
-    SendData(offsetBytes.data(), offsetBytes.length());
-
-    socket->flush();
-    socket->waitForBytesWritten(1);
-
-    socket->flush();
-    socket->waitForBytesWritten(1);
+    socket->write(Common::getBytes((int32_t)offset));
 
     qDebug() << "read " << path << ": Waiting for reply:" << timer.elapsed();
-
-    reply = ReadData();
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
     qDebug() << "read " << path << ": Got first reply:" << timer.elapsed();
-    if (reply.isNull()) {
-        // TODO: Log the error.
-        return -1;
-    }
-    res = reply.toInt();
 
-    if (res >= 0) {
-        reply = ReadData();
+    if (res > 0) {
+        QByteArray reply = Common::readExactBytes(socket, res);
         memcpy(buf, reply.data(), reply.length());
     }
 

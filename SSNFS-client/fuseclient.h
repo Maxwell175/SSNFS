@@ -13,6 +13,7 @@
 #include <QThread>
 #include <fuse.h>
 #include <QSslSocket>
+#include "../common.h"
 
 typedef struct stat fs_stat;
 

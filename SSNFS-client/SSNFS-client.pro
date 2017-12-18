@@ -34,4 +34,5 @@ QMAKE_CXXFLAGS += -D_CLIENT_VERSION=0.1
 HEADERS += \
 #    threadedclient.h \
 #    clientmanager.h \
-    fuseclient.h
+    fuseclient.h \
+    ../common.h

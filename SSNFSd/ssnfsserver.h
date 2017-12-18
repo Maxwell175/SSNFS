@@ -12,6 +12,7 @@
 #include <QTcpServer>
 #include <QSslSocket>
 #include <QList>
+#include "../common.h"
 
 enum ClientStatus {
     WaitingForHello,
@@ -22,7 +23,7 @@ enum ClientStatus {
 struct SSNFSClient {
     QSslSocket *socket;
     ClientStatus status;
-    QString operation;
+    Common::Operation operation;
     int operationStep = 0;
     bool working = false;
     QMap<int, int> fds;

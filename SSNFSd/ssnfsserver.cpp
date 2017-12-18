@@ -21,6 +21,10 @@
 #include <limits>
 #include <errno.h>
 
+#define STR_EXPAND(tok) #tok
+#define STR(tok) STR_EXPAND(tok)
+#define HELLO_STR "SSNFS server version " STR(_SERVER_VERSION)
+
 // For now the values are hardcoded. TODO: Config.
 
 SSNFSServer::SSNFSServer(QObject *parent)
@@ -109,107 +113,6 @@ void SSNFSServer::socketDisconnected(SSNFSClient *sender)
     delete sender;
 }
 
-
-bool SendData(QSslSocket *socket, const char *data, signed long long length = -1)
-{
-    // First, get the length of the data.
-    unsigned long int inputLength;
-    if (length < 0) {
-        // + 1 is for the null terminator.
-        inputLength = strlen(data);
-    } else {
-        inputLength = length;
-    }
-
-    // Account for 5 extra pad bytes at the end.
-    unsigned long int dataLength = inputLength + 5;
-
-    // Convert it into bytes.
-    unsigned char lengthBytes[4];
-    lengthBytes[0] = (dataLength >> 24) & 0xFF;
-    lengthBytes[1] = (dataLength >> 16) & 0xFF;
-    lengthBytes[2] = (dataLength >> 8) & 0xFF;
-    lengthBytes[3] = dataLength & 0xFF;
-
-    //QEventLoop loop;
-
-    // Write the length first.
-    socket->write((char*)(&lengthBytes), 4);
-    // Then the actual data.
-    socket->write(data, inputLength);
-    // Finally the pad bytes.
-    socket->write("\xFF\xFF\xFF\xFF\xFF", 5);
-
-    // Get the total number of bytes that need to get written.
-    unsigned long long totalToWrite = dataLength + 4;
-
-    while (socket->bytesToWrite() != 0) {
-        socket->waitForBytesWritten(-1);
-    }
-
-    return true;
-}
-QByteArray ReadData(QSslSocket *socket, int timeoutMsec = -1)
-{
-    QTime timer;
-    timer.start();
-
-    unsigned long int bytesRead = 0;
-
-    char lengthBytes[4];
-
-    while (bytesRead < 4) {
-        if (socket->bytesAvailable() == 0)
-            socket->waitForReadyRead(1);
-
-        if (socket->bytesAvailable() > 0)
-            qDebug() << "got" << socket->bytesAvailable() << "length bytes:" << timer.elapsed();
-
-        char currData[4 - bytesRead];
-        int currRead = socket->read((char *)(&currData), 4 - bytesRead);
-        for (int i = 0; i < currRead; i++) {
-            lengthBytes[bytesRead + i] = currData[i];
-        }
-        bytesRead += currRead;
-    }
-
-    // Get a number back from the bytes.
-    unsigned long int length = 0;
-    length  = ((unsigned long int)(quint8)lengthBytes[0]) << 24;
-    length |= ((unsigned long int)(quint8)lengthBytes[1]) << 16;
-    length |= ((unsigned long int)(quint8)lengthBytes[2]) << 8;
-    length |= ((unsigned long int)(quint8)lengthBytes[3]);
-
-    // Clear the temp variable.
-    bytesRead = 0;
-
-    char data[length];
-
-    while (bytesRead < length) {
-        if (socket->bytesAvailable() == 0)
-            socket->waitForReadyRead(timeoutMsec);
-
-        char currData[length - bytesRead];
-        int currRead = socket->read((char *)(&currData), length - bytesRead);
-        for (int i = 0; i < currRead; i++) {
-            data[bytesRead + i] = currData[i];
-        }
-        bytesRead += currRead;
-    }
-
-    QByteArray output;
-
-    // Copy to output array.
-    for (unsigned long int i = 0; i < length; i++) {
-        output.append(data[i]);
-    }
-
-    // Strip the pad chars aka last 5 bytes.
-    output.remove(output.length() - 5, 5);
-
-    return output;
-}
-
 void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 {
     QSslSocket *socket = sender->socket;
@@ -217,70 +120,52 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
     switch (sender->status) {
     case WaitingForHello:
     {
-        QByteArray hello = ReadData(socket);
-        if (hello.isNull()) {
-            // TODO: Log read error
-            if (socket->isOpen())
+        if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::Hello) {
+            if (socket->isOpen()) {
                 socket->close();
+            }
+            return;
+        }
+        int32_t serverHelloLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+        QByteArray serverHello = Common::readExactBytes(socket, serverHelloLen);
+
+        if (serverHello.isNull()) {
+            if (socket->isOpen()) {
+                socket->close();
+            }
             return;
         }
 
-        if (QString(hello).startsWith("HELLO: ") == false) {
-            // TODO: Log invalid hello.
-            if (socket->isOpen())
-                socket->close();
-            return;
-        }
+        QString helloStr(serverHello);
+        // TODO: Log this?
 
-        if (SendData(socket, QString("HELLO: SSNFS server version %1").arg(_SERVER_VERSION).toUtf8().data()) == false) {
-            // TODO: Log write error
-            if (socket->isOpen())
-                socket->close();
-            return;
-        }
+        socket->write(Common::getBytes(Common::Hello));
+        socket->write(Common::getBytes((int32_t)strlen(HELLO_STR)));
+        socket->write(HELLO_STR);
 
         sender->status = WaitingForOperation;
     }
         break;
     case WaitingForOperation:
     {
-        QByteArray dataRecvd = ReadData(socket);
-        if (dataRecvd.isNull()) {
-            // TODO: Log read error
-            if (socket->isOpen())
-                socket->close();
+        Common::Operation currOperation = Common::getOperationFromBytes(Common::readExactBytes(socket, 2));
+
+        if (currOperation == Common::InvalidOperation) {
+            qDebug() << "Error! Invalid operation from client.";
+            socket->close();
             return;
         }
 
-        QString recvd = QString(dataRecvd);
-        QStringList operParts = recvd.split(": ");
+        socket->write(Common::getBytes(Common::OK));
 
-        if (operParts[0] != "OPERATION") {
-            // TODO: Log no operation.
-            //if (socket->isOpen())
-            //    socket->close();
-            qDebug() << "Expected Operation, got:" << recvd;
-            return;
-        }
-
-        QStringList availableOperations;
-        availableOperations.append("getattr");
-        availableOperations.append("readdir");
-        availableOperations.append("open");
-        availableOperations.append("read");
-
-        if (availableOperations.contains(operParts[1])) {
-            SendData(socket, "OPERATION OK");
-
-            sender->status = InOperation;
-            sender->operation = QString(operParts[1]);
-            sender->operationStep = 1;
-        }
+        sender->status = InOperation;
+        sender->operation = currOperation;
+        sender->operationStep = 1;
     }
         break;
     case InOperation:
     {
-        if (sender->operation == "getattr") {
+        if (sender->operation == Common::getattr) {
             switch (sender->operationStep) {
             case 1:
             {
@@ -288,7 +173,10 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     return;
                 sender->working = true;
 
-                QByteArray targetPath = ReadData(socket);
+                // Paths need to be int16 because in Win 10 long paths can be enabled.
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
 
                 int res;
 
@@ -302,16 +190,14 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 if (res == -1)
                     res = -errno;
 
-                char resultVal[18] = "";
-                snprintf(resultVal, 18, "RETURN VALUE: %d", res);
-                SendData(socket, (char*)(&resultVal));
+                socket->write(Common::getBytes(res));
 
-                SendData(socket, "RETURN PARAM: stbuf");
+                QByteArray statData;
+                statData.fill('\x00', sizeof(struct stat));
+                memcpy(statData.data(), &stbuf, sizeof(struct stat));
 
-                char statData[sizeof(stbuf)];
-                memcpy(&statData, &stbuf, sizeof(stbuf));
-
-                SendData(socket, (char*)(&statData), sizeof(stbuf));
+                //socket->write((char*)(&statData), sizeof(stbuf));
+                socket->write(statData);
 
                 sender->status = WaitingForOperation;
 
@@ -319,7 +205,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
-        } else if (sender->operation == "readdir") {
+        } else if (sender->operation == Common::readdir) {
             switch (sender->operationStep) {
             case 1:
             {
@@ -327,7 +213,9 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     return;
                 sender->working = true;
 
-                QByteArray targetPath = ReadData(socket);
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
 
                 int res;
 
@@ -341,9 +229,8 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 if (dp == NULL) {
                     res = -errno;
 
-                    char resultVal[18] = "";
-                    snprintf(resultVal, 18, "RETURN VALUE: %d", res);
-                    SendData(socket, (char*)(&resultVal));
+                    socket->write(Common::getBytes(res));
+
                     sender->status = WaitingForOperation;
                     return;
                 }
@@ -363,13 +250,11 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 closedir(dp);
 
-                char resultVal[18] = "";
-                snprintf(resultVal, 18, "RETURN VALUE: %d", res);
-                SendData(socket, (char*)(&resultVal));
+                socket->write(Common::getBytes(res));
 
-                SendData(socket, QString::number(dirents.length()).toUtf8().data());
+                socket->write(Common::getBytes(dirents.length()));
 
-                SendData(socket, (char*)(&outDirents), sizeof(outDirents));
+                socket->write((char*)(&outDirents), sizeof(outDirents));
 
                 sender->status = WaitingForOperation;
 
@@ -377,7 +262,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
-        } else if (sender->operation == "open") {
+        } else if (sender->operation == Common::open) {
             switch (sender->operationStep) {
             case 1:
             {
@@ -385,18 +270,18 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     return;
                 sender->working = true;
 
-                QByteArray targetPath = ReadData(socket);
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
 
                 int res;
 
                 QString finalPath(testBase);
                 finalPath.append(targetPath);
 
-                SendData(socket, "OK");
+                int oflags = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-                QByteArray flags = ReadData(socket);
-
-                res = open(finalPath.toUtf8().data(), flags.toInt());
+                res = open(finalPath.toUtf8().data(), oflags);
                 if (res == -1)
                     res = -errno;
                 else {
@@ -416,8 +301,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     }
                 }
 
-                QByteArray result = QByteArray::number(res);
-                SendData(socket, result.data(), result.length());
+                socket->write(Common::getBytes(res));
 
                 sender->status = WaitingForOperation;
 
@@ -425,7 +309,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
-        } else if (sender->operation == "read") {
+        } else if (sender->operation == Common::read) {
             switch (sender->operationStep) {
             case 1:
             {
@@ -435,48 +319,19 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 sender->timer.restart();
 
-                // Get the file to read.
-                QByteArray targetPath = ReadData(socket);
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
 
                 QString finalPath(testBase);
                 finalPath.append(targetPath);
 
-                sender->operationData.insert("path", finalPath);
-                sender->operationStep = 2;
-
-                qDebug() << "Done step 1:" << sender->timer.elapsed();
-            }
-                break;
-            case 2:
-            {
-                qDebug() << "Step 2 start:" << sender->timer.elapsed();
-
                 // Get the internal File Descriptor.
-                QByteArray fd = ReadData(socket);
-                int fakeFd = fd.toInt();
+                int fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-                sender->operationData.insert("fakeFd", fakeFd);
-                sender->operationStep = 3;
+                int readSize = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-                qDebug() << "Done step 2:" << sender->timer.elapsed();
-            }
-                break;
-            case 3:
-            {
-                int readSize = ReadData(socket).toInt();
-
-                sender->operationData.insert("readSize", readSize);
-                sender->operationStep = 4;
-
-                qDebug() << "Done step 3:" << sender->timer.elapsed();
-            }
-                break;
-            case 4:
-            {
-                QString finalPath = sender->operationData.value("path").toString();
-                int fakeFd = sender->operationData.value("fakeFd").toInt();
-                int readSize = sender->operationData.value("readSize").toInt();
-                int readOffset = ReadData(socket).toInt();
+                int readOffset = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
                 int res;
 
@@ -493,9 +348,10 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 lstat(procFdPath.toUtf8().data(), &procFdInfo);
 
-                char actualFdFilePath[procFdInfo.st_size + 1];
+                QVector<char> actualFdFilePath;
+                actualFdFilePath.fill('\x00', procFdInfo.st_size + 1);
 
-                ssize_t r = readlink(procFdPath.toUtf8().data(), (char*)(&actualFdFilePath), procFdInfo.st_size + 1);
+                ssize_t r = readlink(procFdPath.toUtf8().data(), actualFdFilePath.data(), procFdInfo.st_size + 1);
 
                 if (r < 0) {
                     res = -errno;
@@ -507,7 +363,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                                    << " new size:" << r << " readlink result:" << actualFdFilePath;
                         res = -1;
                     } else {
-                        if (finalPath == actualFdFilePath) {
+                        if (finalPath == actualFdFilePath.data()) {
                             actuallyRead = pread(realFd, readBuf, readSize, readOffset);
                             res = actuallyRead;
                         } else {
@@ -516,12 +372,10 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     }
                 }
 
-                QByteArray result = QByteArray::number(res);
-                SendData(socket, result.data(), result.length());
+                socket->write(Common::getBytes(res));
 
-                SendData(socket, (char*)(readBuf), actuallyRead);
-
-                qDebug() << "Done step 4:" << sender->timer.elapsed();
+                if (res > 0)
+                    socket->write((char*)(readBuf), actuallyRead);
 
                 sender->operationData.clear();
                 sender->operationStep = 1;
