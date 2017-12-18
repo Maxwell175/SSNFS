@@ -386,6 +386,76 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
+        } else if (sender->operation == Common::access) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                int mask = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                // TODO: Add additional restrictions to prevent problems across users.
+                res = access(finalPath.toUtf8().data(), mask);
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::readlink) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                int size = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                QByteArray buf;
+                buf.fill('\0', size);
+
+                // TODO: Add additional restrictions to prevent problems across users.
+                res = readlink(finalPath.toUtf8().data(), buf.data(), size - 1);
+
+                if (res == -1)
+                    res = -errno;
+                else
+                    buf.remove(res, buf.length() - res);
+
+                socket->write(Common::getBytes(res));
+
+                socket->write(buf);
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
         }
     }
         break;

@@ -66,6 +66,16 @@ static int fs_call_read(const char *path, char *buf, size_t size, off_t offset,
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_read(path, buf, size, offset, fi);
 }
+static int fs_call_access(const char *path, int mask)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_access(path, mask);
+}
+static int fs_call_readlink(const char *path, char *buf, size_t size)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_readlink(path, buf, size);
+}
 
 void FuseClient::started()
 {
@@ -76,6 +86,8 @@ void FuseClient::started()
     fs_oper.readdir = fs_call_readdir;
     fs_oper.open = fs_call_open;
     fs_oper.read = fs_call_read;
+    fs_oper.access = fs_call_access;
+    fs_oper.readlink = fs_call_readlink;
 
     int argc = 4;
     char *argv[4];
@@ -348,4 +360,80 @@ int FuseClient::fs_read(const char *path, char *buf, size_t size, off_t offset,
     qDebug() << "read " << path << ":" << res <<"bytes Done:" << timer.elapsed();
 
     return res;
+}
+
+int FuseClient::fs_access(const char *path, int mask)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "access " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::access));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during access" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes(mask));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "access " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_readlink(const char *path, char *buf, size_t size)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "readlink " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::readlink));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during readlink" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes((int32_t)size));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    if (res > 0) {
+        QByteArray outbuf = Common::readExactBytes(socket, res);
+        memcpy(buf, outbuf.data(), res);
+        buf[res] = '\0';
+    }
+
+    qDebug() << "readlink " << path << ": Done" << timer.elapsed();
+
+    return 0;
 }
