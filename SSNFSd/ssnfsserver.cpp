@@ -17,6 +17,7 @@
 #include <stdio.h>
 
 #include <QEventLoop>
+#include <QDir>
 
 #include <limits>
 #include <errno.h>
@@ -442,13 +443,53 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 res = readlink(finalPath.toUtf8().data(), buf.data(), size - 1);
 
                 if (res == -1)
-                    res = -errno;
+                    socket->write(Common::getBytes(-errno));
+                else {
+                    // Convert paths to be relative to base.
+                    QDir base(testBase);
+                    QString result = base.relativeFilePath(buf.data());
+
+                    socket->write(Common::getBytes(result.length()));
+
+                    socket->write(result.toUtf8().data());
+                }
+
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::mknod) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                int mode = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                /* On Linux this could just be 'mknod(path, mode, rdev)' but this
+                   is more portable */
+                if (S_ISFIFO(mode))
+                    res = mkfifo(finalPath.toUtf8().data(), mode);
                 else
-                    buf.remove(res, buf.length() - res);
+                    res = mknod(finalPath.toUtf8().data(), mode, (dev_t) 0);
+                if (res == -1)
+                    res = -errno;
 
                 socket->write(Common::getBytes(res));
-
-                socket->write(buf);
 
                 sender->status = WaitingForOperation;
 

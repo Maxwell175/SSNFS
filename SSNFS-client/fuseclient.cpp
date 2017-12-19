@@ -76,6 +76,11 @@ static int fs_call_readlink(const char *path, char *buf, size_t size)
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_readlink(path, buf, size);
 }
+static int fs_call_mknod(const char *path, mode_t mode, dev_t rdev)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_mknod(path, mode, rdev);
+}
 
 void FuseClient::started()
 {
@@ -88,6 +93,7 @@ void FuseClient::started()
     fs_oper.read = fs_call_read;
     fs_oper.access = fs_call_access;
     fs_oper.readlink = fs_call_readlink;
+    fs_oper.mknod = fs_call_mknod;
 
     int argc = 4;
     char *argv[4];
@@ -436,4 +442,47 @@ int FuseClient::fs_readlink(const char *path, char *buf, size_t size)
     qDebug() << "readlink " << path << ": Done" << timer.elapsed();
 
     return 0;
+}
+
+int FuseClient::fs_mknod(const char *path, mode_t mode, dev_t rdev)
+{
+    if (S_ISBLK(mode) || S_ISCHR(mode)) {
+        return -EINVAL;
+    }
+    (void) rdev;
+
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "mknod " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::mknod));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during mknod" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes((int32_t)mode));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "mknod " << path << ": Done" << timer.elapsed();
+
+    if (res < 0)
+        return res;
+    else
+        return 0;
 }

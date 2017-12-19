@@ -52,6 +52,7 @@ public slots:
                        struct fuse_file_info *fi);
     int fs_access(const char *path, int mask);
     int fs_readlink(const char *path, char *buf, size_t size);
+    int fs_mknod(const char *path, mode_t mode, dev_t rdev);
     // FUSE callbacks
 
 };

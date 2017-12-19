@@ -12,7 +12,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 5;
+    const uint16_t MAX_OPERATION = 6;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -20,6 +20,7 @@ namespace Common {
         read = 3,
         access = 4,
         readlink = 5,
+        mknod = 6,
 
         InvalidOperation = UINT16_MAX
     };
