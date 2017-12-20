@@ -478,7 +478,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 QString finalPath(testBase);
                 finalPath.append(targetPath);
 
-                int mode = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+                unsigned int mode = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
                 /* On Linux this could just be 'mknod(path, mode, rdev)' but this
                    is more portable */
@@ -488,6 +488,89 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     res = mknod(finalPath.toUtf8().data(), mode, (dev_t) 0);
                 if (res == -1)
                     res = -errno;
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::mkdir) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                unsigned int mode = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                res = mkdir(finalPath.toUtf8().data(), mode);
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::unlink) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                res = unlink(finalPath.toUtf8().data());
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::rmdir) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                res = rmdir(finalPath.toUtf8().data());
 
                 socket->write(Common::getBytes(res));
 

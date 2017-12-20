@@ -81,6 +81,21 @@ static int fs_call_mknod(const char *path, mode_t mode, dev_t rdev)
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_mknod(path, mode, rdev);
 }
+static int fs_call_mkdir(const char *path, mode_t mode)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_mkdir(path, mode);
+}
+static int fs_call_unlink(const char *path)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_unlink(path);
+}
+static int fs_call_rmdir(const char *path)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_rmdir(path);
+}
 
 void FuseClient::started()
 {
@@ -94,6 +109,9 @@ void FuseClient::started()
     fs_oper.access = fs_call_access;
     fs_oper.readlink = fs_call_readlink;
     fs_oper.mknod = fs_call_mknod;
+    fs_oper.mkdir = fs_call_mkdir;
+    fs_oper.unlink = fs_call_unlink;
+    fs_oper.rmdir = fs_call_rmdir;
 
     int argc = 4;
     char *argv[4];
@@ -474,7 +492,7 @@ int FuseClient::fs_mknod(const char *path, mode_t mode, dev_t rdev)
     socket->write(Common::getBytes((uint16_t)strlen(path)));
     socket->write(path);
 
-    socket->write(Common::getBytes((int32_t)mode));
+    socket->write(Common::getBytes(mode));
     socket->waitForBytesWritten(-1);
 
     res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
@@ -485,4 +503,107 @@ int FuseClient::fs_mknod(const char *path, mode_t mode, dev_t rdev)
         return res;
     else
         return 0;
+}
+
+int FuseClient::fs_mkdir(const char *path, mode_t mode)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "mkdir " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::mkdir));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during mkdir" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes(mode));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "mkdir " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_unlink(const char *path)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "unlink " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::unlink));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during unlink" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "unlink " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_rmdir(const char *path)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "rmdir " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::rmdir));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during rmdir" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "rmdir " << path << ": Done" << timer.elapsed();
+
+    return res;
 }
