@@ -12,7 +12,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 6;
+    const uint16_t MAX_OPERATION = 9;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -21,6 +21,9 @@ namespace Common {
         access = 4,
         readlink = 5,
         mknod = 6,
+        mkdir = 7,
+        unlink = 8,
+        rmdir = 9,
 
         InvalidOperation = UINT16_MAX
     };
@@ -45,7 +48,23 @@ namespace Common {
         result |= ((int32_t)(uint8_t)input[3]);
         return result;
     }
+    inline uint32_t getUInt32FromBytes(QByteArray input) {
+        uint32_t result = 0;
+        result |= ((uint32_t)(uint8_t)input[0]) << 24;
+        result |= ((uint32_t)(uint8_t)input[1]) << 16;
+        result |= ((uint32_t)(uint8_t)input[2]) << 8;
+        result |= ((uint32_t)(uint8_t)input[3]);
+        return result;
+    }
     inline QByteArray getBytes(int32_t input) {
+        QByteArray resultBytes;
+        resultBytes.append((input >> 24) & 0xFF);
+        resultBytes.append((input >> 16) & 0xFF);
+        resultBytes.append((input >> 8) & 0xFF);
+        resultBytes.append(input & 0xFF);
+        return resultBytes;
+    }
+    inline QByteArray getBytes(uint32_t input) {
         QByteArray resultBytes;
         resultBytes.append((input >> 24) & 0xFF);
         resultBytes.append((input >> 16) & 0xFF);

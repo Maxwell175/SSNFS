@@ -53,6 +53,9 @@ public slots:
     int fs_access(const char *path, int mask);
     int fs_readlink(const char *path, char *buf, size_t size);
     int fs_mknod(const char *path, mode_t mode, dev_t rdev);
+    int fs_mkdir(const char *path, mode_t mode);
+    int fs_unlink(const char *path);
+    int fs_rmdir(const char *path);
     // FUSE callbacks
 
 };
