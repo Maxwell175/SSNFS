@@ -12,7 +12,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 13;
+    const uint16_t MAX_OPERATION = 14;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -28,6 +28,7 @@ namespace Common {
         rename = 11,
         chmod = 12,
         chown = 13,
+        truncate = 14,
 
         InvalidOperation = UINT16_MAX
     };

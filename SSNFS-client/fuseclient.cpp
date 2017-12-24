@@ -117,6 +117,11 @@ static int fs_call_chown(const char *path, uid_t uid, gid_t gid)
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_chown(path, uid, gid);
 }
+static int fs_call_truncate(const char *path, off_t size)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_truncate(path, size);
+}
 
 void FuseClient::started()
 {
@@ -137,6 +142,7 @@ void FuseClient::started()
     fs_oper.rename = fs_call_rename;
     fs_oper.chmod = fs_call_chmod;
     fs_oper.chown = fs_call_chown;
+    fs_oper.truncate = fs_call_truncate;
 
     int argc = 6;
     char *argv[6];
@@ -776,6 +782,41 @@ int FuseClient::fs_chown(const char *path, uid_t uid, gid_t gid)
     res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
     qDebug() << "chown " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_truncate(const char *path, off_t size)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "truncate " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::truncate));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during truncate" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes((uint32_t)size));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "truncate " << path << ": Done" << timer.elapsed();
 
     return res;
 }
