@@ -11,6 +11,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QString>
+#include <QDir>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -96,6 +97,16 @@ static int fs_call_rmdir(const char *path)
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_rmdir(path);
 }
+static int fs_call_symlink(const char *from, const char *to)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_symlink(from, to);
+}
+static int fs_call_rename(const char *from, const char *to)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_rename(from, to);
+}
 
 void FuseClient::started()
 {
@@ -112,6 +123,8 @@ void FuseClient::started()
     fs_oper.mkdir = fs_call_mkdir;
     fs_oper.unlink = fs_call_unlink;
     fs_oper.rmdir = fs_call_rmdir;
+    fs_oper.symlink = fs_call_symlink;
+    fs_oper.rename = fs_call_rename;
 
     int argc = 4;
     char *argv[4];
@@ -604,6 +617,80 @@ int FuseClient::fs_rmdir(const char *path)
     res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
     qDebug() << "rmdir " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_symlink(const char *from, const char *to)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "symlink " << to << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::symlink));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during symlink" << from;
+        return -ECOMM;
+    }
+
+    QDir mountDir(mountPath);
+    QByteArray relativeFrom = mountDir.relativeFilePath(from).toUtf8();
+    socket->write(Common::getBytes((uint16_t)relativeFrom.length()));
+    socket->write(relativeFrom);
+    socket->write(Common::getBytes((uint16_t)strlen(to)));
+    socket->write(to);
+
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "symlink " << to << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_rename(const char *from, const char *to)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "rename " << from << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::rename));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during rename" << from;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(from)));
+    socket->write(from);
+    socket->write(Common::getBytes((uint16_t)strlen(to)));
+    socket->write(to);
+
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "rename " << from << ": Done" << timer.elapsed();
 
     return res;
 }

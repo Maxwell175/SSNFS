@@ -12,7 +12,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 9;
+    const uint16_t MAX_OPERATION = 11;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -24,6 +24,8 @@ namespace Common {
         mkdir = 7,
         unlink = 8,
         rmdir = 9,
+        symlink = 10,
+        rename = 11,
 
         InvalidOperation = UINT16_MAX
     };

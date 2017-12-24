@@ -518,6 +518,9 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 res = mkdir(finalPath.toUtf8().data(), mode);
 
+                if (res == -1)
+                    res = -errno;
+
                 socket->write(Common::getBytes(res));
 
                 sender->status = WaitingForOperation;
@@ -545,6 +548,9 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 res = unlink(finalPath.toUtf8().data());
 
+                if (res == -1)
+                    res = -errno;
+
                 socket->write(Common::getBytes(res));
 
                 sender->status = WaitingForOperation;
@@ -571,6 +577,79 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 finalPath.append(targetPath);
 
                 res = rmdir(finalPath.toUtf8().data());
+
+                if (res == -1)
+                    res = -errno;
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::symlink) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t oldPathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray oldPath = Common::readExactBytes(socket, oldPathLength);
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                res = symlink(oldPath.data(), finalPath.toUtf8().data());
+
+                if (res == -1)
+                    res = -errno;
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::rename) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t FromPathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray FromPath = Common::readExactBytes(socket, FromPathLength);
+
+                uint16_t ToPathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray ToPath = Common::readExactBytes(socket, ToPathLength);
+
+                int res;
+
+                QString finalFromPath(testBase);
+                finalFromPath.append(FromPath);
+                QString finalToPath(testBase);
+                finalToPath.append(ToPath);
+
+                res = rename(finalFromPath.toUtf8().data(), finalToPath.toUtf8().data());
+
+                if (res == -1)
+                    res = -errno;
 
                 socket->write(Common::getBytes(res));
 

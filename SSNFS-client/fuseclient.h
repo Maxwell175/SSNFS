@@ -56,6 +56,8 @@ public slots:
     int fs_mkdir(const char *path, mode_t mode);
     int fs_unlink(const char *path);
     int fs_rmdir(const char *path);
+    int fs_symlink(const char *from, const char *to);
+    int fs_rename(const char *from, const char *to);
     // FUSE callbacks
 
 };
