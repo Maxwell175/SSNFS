@@ -107,6 +107,16 @@ static int fs_call_rename(const char *from, const char *to)
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_rename(from, to);
 }
+static int fs_call_chmod(const char *path, mode_t mode)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_chmod(path, mode);
+}
+static int fs_call_chown(const char *path, uid_t uid, gid_t gid)
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_chown(path, uid, gid);
+}
 
 void FuseClient::started()
 {
@@ -125,13 +135,17 @@ void FuseClient::started()
     fs_oper.rmdir = fs_call_rmdir;
     fs_oper.symlink = fs_call_symlink;
     fs_oper.rename = fs_call_rename;
+    fs_oper.chmod = fs_call_chmod;
+    fs_oper.chown = fs_call_chown;
 
-    int argc = 4;
-    char *argv[4];
+    int argc = 6;
+    char *argv[6];
     argv[0] = QCoreApplication::instance()->arguments().at(0).toUtf8().data();
     argv[1] = "-f";
     argv[2] = "-s";
-    argv[3] = mountPath.toUtf8().data();
+    argv[3] = "-o";
+    argv[4] = "allow_other";
+    argv[5] = mountPath.toUtf8().data();
 
     fuse_main(argc, argv, &fs_oper, this);
 }
@@ -691,6 +705,77 @@ int FuseClient::fs_rename(const char *from, const char *to)
     res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
     qDebug() << "rename " << from << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_chmod(const char *path, mode_t mode)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "chmod " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::chmod));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during chmod" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes(mode));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "chmod " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_chown(const char *path, uid_t uid, gid_t gid)
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "chown " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::chown));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during chown" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes(uid));
+    socket->write(Common::getBytes(gid));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "chown " << path << ": Done" << timer.elapsed();
 
     return res;
 }

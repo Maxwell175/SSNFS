@@ -659,6 +659,73 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
+        } else if (sender->operation == Common::chmod) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                unsigned int mode = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                // TODO: This is just a temporary version. Really, this should be much more complex.
+                res = chmod(finalPath.toUtf8().data(), mode);
+
+                if (res == -1)
+                    res = -errno;
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::chown) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                unsigned int uid = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4));
+                unsigned int gid = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                // TODO: This is just a temporary version. Really, this should be much more complex.
+                res = lchown(finalPath.toUtf8().data(), uid, gid);
+
+                if (res == -1)
+                    res = -errno;
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
         }
     }
         break;
