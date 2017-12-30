@@ -61,6 +61,7 @@ public slots:
     int fs_chmod(const char *path, mode_t mode);
     int fs_chown(const char *path, uid_t uid, gid_t gid);
     int fs_truncate(const char *path, off_t size);
+    int fs_utimens(const char *path, const struct timespec ts[2]);
     // FUSE callbacks
 
 };

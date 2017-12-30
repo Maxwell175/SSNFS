@@ -122,6 +122,11 @@ static int fs_call_truncate(const char *path, off_t size)
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_truncate(path, size);
 }
+static int fs_call_utimens(const char *path, const timespec ts[2])
+{
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_utimens(path, ts);
+}
 
 void FuseClient::started()
 {
@@ -143,6 +148,7 @@ void FuseClient::started()
     fs_oper.chmod = fs_call_chmod;
     fs_oper.chown = fs_call_chown;
     fs_oper.truncate = fs_call_truncate;
+    fs_oper.utimens = fs_call_utimens;
 
     int argc = 6;
     char *argv[6];
@@ -817,6 +823,45 @@ int FuseClient::fs_truncate(const char *path, off_t size)
     res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
     qDebug() << "truncate " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_utimens(const char *path, const timespec ts[2])
+{
+    QTime timer;
+    timer.start();
+
+    int res;
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "utimens " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::utimens));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during utimens" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes((int64_t)ts[0].tv_sec));
+    socket->write(Common::getBytes((int64_t)ts[0].tv_nsec));
+
+    socket->write(Common::getBytes((int64_t)ts[1].tv_sec));
+    socket->write(Common::getBytes((int64_t)ts[1].tv_nsec));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "utimens " << path << ": Done" << timer.elapsed();
 
     return res;
 }

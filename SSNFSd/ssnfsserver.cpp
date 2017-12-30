@@ -758,6 +758,42 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
+        } else if (sender->operation == Common::utimens) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                int res;
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                timespec ts[2];
+                ts[0].tv_sec = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
+                ts[0].tv_nsec = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
+                ts[1].tv_sec = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
+                ts[1].tv_nsec = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
+
+                res = utimensat(0, finalPath.toUtf8().data(), ts, AT_SYMLINK_NOFOLLOW);
+
+                if (res == -1)
+                    res = -errno;
+
+                socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
         }
     }
         break;

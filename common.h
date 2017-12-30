@@ -12,7 +12,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 14;
+    const uint16_t MAX_OPERATION = 15;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -29,6 +29,7 @@ namespace Common {
         chmod = 12,
         chown = 13,
         truncate = 14,
+        utimens = 15,
 
         InvalidOperation = UINT16_MAX
     };
@@ -53,14 +54,6 @@ namespace Common {
         result |= ((int32_t)(uint8_t)input[3]);
         return result;
     }
-    inline uint32_t getUInt32FromBytes(QByteArray input) {
-        uint32_t result = 0;
-        result |= ((uint32_t)(uint8_t)input[0]) << 24;
-        result |= ((uint32_t)(uint8_t)input[1]) << 16;
-        result |= ((uint32_t)(uint8_t)input[2]) << 8;
-        result |= ((uint32_t)(uint8_t)input[3]);
-        return result;
-    }
     inline QByteArray getBytes(int32_t input) {
         QByteArray resultBytes;
         resultBytes.append((input >> 24) & 0xFF);
@@ -69,8 +62,64 @@ namespace Common {
         resultBytes.append(input & 0xFF);
         return resultBytes;
     }
+    inline uint32_t getUInt32FromBytes(QByteArray input) {
+        uint32_t result = 0;
+        result |= ((uint32_t)(uint8_t)input[0]) << 24;
+        result |= ((uint32_t)(uint8_t)input[1]) << 16;
+        result |= ((uint32_t)(uint8_t)input[2]) << 8;
+        result |= ((uint32_t)(uint8_t)input[3]);
+        return result;
+    }
     inline QByteArray getBytes(uint32_t input) {
         QByteArray resultBytes;
+        resultBytes.append((input >> 24) & 0xFF);
+        resultBytes.append((input >> 16) & 0xFF);
+        resultBytes.append((input >> 8) & 0xFF);
+        resultBytes.append(input & 0xFF);
+        return resultBytes;
+    }
+    inline int64_t getInt64FromBytes(QByteArray input) {
+        int64_t result = 0;
+        result |= ((int64_t)(uint8_t)input[0]) << 56;
+        result |= ((int64_t)(uint8_t)input[0]) << 48;
+        result |= ((int64_t)(uint8_t)input[0]) << 40;
+        result |= ((int64_t)(uint8_t)input[0]) << 32;
+        result |= ((int64_t)(uint8_t)input[0]) << 24;
+        result |= ((int64_t)(uint8_t)input[1]) << 16;
+        result |= ((int64_t)(uint8_t)input[2]) << 8;
+        result |= ((int64_t)(uint8_t)input[3]);
+        return result;
+    }
+    inline QByteArray getBytes(int64_t input) {
+        QByteArray resultBytes;
+        resultBytes.append((input >> 56) & 0xFF);
+        resultBytes.append((input >> 48) & 0xFF);
+        resultBytes.append((input >> 40) & 0xFF);
+        resultBytes.append((input >> 32) & 0xFF);
+        resultBytes.append((input >> 24) & 0xFF);
+        resultBytes.append((input >> 16) & 0xFF);
+        resultBytes.append((input >> 8) & 0xFF);
+        resultBytes.append(input & 0xFF);
+        return resultBytes;
+    }
+    inline uint64_t getUInt64FromBytes(QByteArray input) {
+        uint64_t result = 0;
+        result |= ((uint64_t)(uint8_t)input[0]) << 56;
+        result |= ((uint64_t)(uint8_t)input[0]) << 48;
+        result |= ((uint64_t)(uint8_t)input[0]) << 40;
+        result |= ((uint64_t)(uint8_t)input[0]) << 32;
+        result |= ((uint64_t)(uint8_t)input[0]) << 24;
+        result |= ((uint64_t)(uint8_t)input[1]) << 16;
+        result |= ((uint64_t)(uint8_t)input[2]) << 8;
+        result |= ((uint64_t)(uint8_t)input[3]);
+        return result;
+    }
+    inline QByteArray getBytes(uint64_t input) {
+        QByteArray resultBytes;
+        resultBytes.append((input >> 56) & 0xFF);
+        resultBytes.append((input >> 48) & 0xFF);
+        resultBytes.append((input >> 40) & 0xFF);
+        resultBytes.append((input >> 32) & 0xFF);
         resultBytes.append((input >> 24) & 0xFF);
         resultBytes.append((input >> 16) & 0xFF);
         resultBytes.append((input >> 8) & 0xFF);
