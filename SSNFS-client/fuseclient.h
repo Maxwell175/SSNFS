@@ -62,6 +62,8 @@ public slots:
     int fs_chown(const char *path, uid_t uid, gid_t gid);
     int fs_truncate(const char *path, off_t size);
     int fs_utimens(const char *path, const struct timespec ts[2]);
+    int fs_write(const char *path, const char *buf, size_t size,
+                        off_t offset, struct fuse_file_info *fi);
     // FUSE callbacks
 
 };

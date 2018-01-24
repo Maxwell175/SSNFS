@@ -56,6 +56,8 @@ void SSNFSServer::incomingConnection(qintptr socketDescriptor)
 
     socket->startServerEncryption();
 
+    socket->setReadBufferSize(1024000);
+
     SSNFSClient *currClient = new SSNFSClient();
     currClient->socket = socket;
     currClient->status = WaitingForHello;
@@ -330,9 +332,9 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 // Get the internal File Descriptor.
                 int fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-                int readSize = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+                int64_t readSize = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
 
-                int readOffset = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+                int64_t readOffset = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
 
                 int res;
 
@@ -787,6 +789,99 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     res = -errno;
 
                 socket->write(Common::getBytes(res));
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::write) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                //sender->timer.restart();
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                // Get the internal File Descriptor.
+                int fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                int64_t Size = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
+
+                int64_t Offset = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
+
+                qDebug() << "Got Metadata:" << sender->timer.elapsed();
+
+                QByteArray dataToWrite;
+
+                /*while (true) {
+                    int currSize = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+                    if (currSize == -1)
+                        break;
+                    dataToWrite.append(Common::readExactBytes(socket, currSize, -1, sender->timer));
+                    socket->write(Common::getBytes(Common::OK));
+                    socket->waitForBytesWritten(-1);
+                }*/
+
+                dataToWrite.append(Common::readExactBytes(socket, Size, 0));//, sender->timer));
+
+                qDebug() << "Got Data:" << sender->timer.elapsed();
+
+                int res;
+
+                int actuallyWritten = -1;
+
+                // Find the corresponding actual File Descriptor
+                int realFd = sender->fds.value(fakeFd);
+
+                // We will now use the proc virtual filesystem to look up info about the File Descriptor.
+                QString procFdPath = tr("/proc/self/fd/%1").arg(realFd);
+
+                struct stat procFdInfo;
+
+                lstat(procFdPath.toUtf8().data(), &procFdInfo);
+
+                QVector<char> actualFdFilePath;
+                actualFdFilePath.fill('\x00', procFdInfo.st_size + 1);
+
+                ssize_t r = readlink(procFdPath.toUtf8().data(), actualFdFilePath.data(), procFdInfo.st_size + 1);
+
+                if (r < 0) {
+                    res = -errno;
+                } else {
+                    actualFdFilePath[procFdInfo.st_size] = '\0';
+                    if (r > procFdInfo.st_size) {
+                        qWarning() << "The File Descriptor link in /proc increased in size" <<
+                                      "between lstat() and readlink()! old size:" << procFdInfo.st_size
+                                   << " new size:" << r << " readlink result:" << actualFdFilePath;
+                        res = -1;
+                    } else {
+                        if (finalPath == actualFdFilePath.data()) {
+                            actuallyWritten = pwrite(realFd, dataToWrite.data(), Size, Offset);
+                            if (actuallyWritten == -1)
+                                res = -errno;
+                            else
+                                res = actuallyWritten;
+                        } else {
+                            res = -EBADF;
+                        }
+                    }
+                }
+
+                socket->write(Common::getBytes(res));
+
+                sender->operationData.clear();
+                sender->operationStep = 1;
 
                 sender->status = WaitingForOperation;
 

@@ -1,6 +1,8 @@
 #include <cstdint>
 #include <QByteArray>
-#include <QIODevice>
+#include <QAbstractSocket>
+#include <QTime>
+#include <unistd.h>
 
 namespace Common {
     const uint8_t MAX_RESULTCODE = 1;
@@ -12,7 +14,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 15;
+    const uint16_t MAX_OPERATION = 16;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -30,6 +32,7 @@ namespace Common {
         chown = 13,
         truncate = 14,
         utimens = 15,
+        write = 16,
 
         InvalidOperation = UINT16_MAX
     };
@@ -81,13 +84,13 @@ namespace Common {
     inline int64_t getInt64FromBytes(QByteArray input) {
         int64_t result = 0;
         result |= ((int64_t)(uint8_t)input[0]) << 56;
-        result |= ((int64_t)(uint8_t)input[0]) << 48;
-        result |= ((int64_t)(uint8_t)input[0]) << 40;
-        result |= ((int64_t)(uint8_t)input[0]) << 32;
-        result |= ((int64_t)(uint8_t)input[0]) << 24;
-        result |= ((int64_t)(uint8_t)input[1]) << 16;
-        result |= ((int64_t)(uint8_t)input[2]) << 8;
-        result |= ((int64_t)(uint8_t)input[3]);
+        result |= ((int64_t)(uint8_t)input[1]) << 48;
+        result |= ((int64_t)(uint8_t)input[2]) << 40;
+        result |= ((int64_t)(uint8_t)input[3]) << 32;
+        result |= ((int64_t)(uint8_t)input[4]) << 24;
+        result |= ((int64_t)(uint8_t)input[5]) << 16;
+        result |= ((int64_t)(uint8_t)input[6]) << 8;
+        result |= ((int64_t)(uint8_t)input[7]);
         return result;
     }
     inline QByteArray getBytes(int64_t input) {
@@ -105,13 +108,13 @@ namespace Common {
     inline uint64_t getUInt64FromBytes(QByteArray input) {
         uint64_t result = 0;
         result |= ((uint64_t)(uint8_t)input[0]) << 56;
-        result |= ((uint64_t)(uint8_t)input[0]) << 48;
-        result |= ((uint64_t)(uint8_t)input[0]) << 40;
-        result |= ((uint64_t)(uint8_t)input[0]) << 32;
-        result |= ((uint64_t)(uint8_t)input[0]) << 24;
-        result |= ((uint64_t)(uint8_t)input[1]) << 16;
-        result |= ((uint64_t)(uint8_t)input[2]) << 8;
-        result |= ((uint64_t)(uint8_t)input[3]);
+        result |= ((uint64_t)(uint8_t)input[1]) << 48;
+        result |= ((uint64_t)(uint8_t)input[2]) << 40;
+        result |= ((uint64_t)(uint8_t)input[3]) << 32;
+        result |= ((uint64_t)(uint8_t)input[4]) << 24;
+        result |= ((uint64_t)(uint8_t)input[5]) << 16;
+        result |= ((uint64_t)(uint8_t)input[6]) << 8;
+        result |= ((uint64_t)(uint8_t)input[7]);
         return result;
     }
     inline QByteArray getBytes(uint64_t input) {
@@ -153,11 +156,16 @@ namespace Common {
             return (Operation) result;
     }
 
-    inline QByteArray readExactBytes(QIODevice *input, int length, int timeout = 1) {
+    inline QByteArray readExactBytes(QAbstractSocket *input, int length, int timeout = 1, QTime timer = QTime::currentTime()) {
         QByteArray result;
         while (result.length() < length) {
             if (input->bytesAvailable() == 0) {
-                input->waitForReadyRead(timeout);
+                input->flush();
+                if (input->waitForReadyRead(timeout)) {
+                    qDebug() << "Got Batch:" << timer.elapsed();
+                } else {
+                    //usleep(1);
+                }
             }
             result.append(input->read(length - result.length()));
         }
