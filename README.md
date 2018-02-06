@@ -18,3 +18,6 @@ This project's goal is to create a simple way to mount a directory located on a 
  * Read Write mode (In Progress) 
  * Configuration 
  * Managment interface?
+
+## Coding style
+This project uses [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html).
