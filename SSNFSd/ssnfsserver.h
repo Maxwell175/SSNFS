@@ -12,7 +12,7 @@
 #include <QTcpServer>
 #include <QSslSocket>
 #include <QList>
-#include "../common.h"
+#include <common.h>
 
 enum ClientStatus {
     WaitingForHello,

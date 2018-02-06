@@ -20,19 +20,17 @@ LIBS += -lfuse
 
 TEMPLATE = app
 
+include(../Common/Common.pri)
+
 SOURCES += main.cpp \
-#    threadedclient.cpp \
-#    clientmanager.cpp \
     fuseclient.cpp
+
+HEADERS += \
+    fuseclient.h
+
 
 QMAKE_CXXFLAGS += -D_FILE_OFFSET_BITS=64
 QMAKE_CXXFLAGS += -D_XOPEN_SOURCE=700
 QMAKE_CXXFLAGS += -DFUSE_USE_VERSION=31
 
 QMAKE_CXXFLAGS += -D_CLIENT_VERSION=0.1
-
-HEADERS += \
-#    threadedclient.h \
-#    clientmanager.h \
-    fuseclient.h \
-    ../common.h

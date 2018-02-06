@@ -18,15 +18,13 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
+include(../Common/Common.pri)
+
 SOURCES += main.cpp \
-    ssnfsserver.cpp \
-#    ssnfsthread.cpp \
-#    ssnfsrunnable.cpp
+    ssnfsserver.cpp
 
 HEADERS += \
-    ssnfsserver.h \
-    ../common.h
-#    ssnfsthread.h \
+    ssnfsserver.h
 
 
 QMAKE_CXXFLAGS += -D_FILE_OFFSET_BITS=64

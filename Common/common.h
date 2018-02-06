@@ -1,3 +1,6 @@
+#ifndef COMMON_H
+#define COMMON_H
+
 #include <cstdint>
 #include <QByteArray>
 #include <QAbstractSocket>
@@ -172,3 +175,6 @@ namespace Common {
         return result;
     }
 }
+
+
+#endif // COMMON_H
