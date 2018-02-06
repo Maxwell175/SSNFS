@@ -1,5 +1,7 @@
 # SSNFS - A Simple, Secure Network File System
 
+[![Join the chat at https://gitter.im/SSNFS/Lobby](https://badges.gitter.im/SSNFS/Lobby.svg)](https://gitter.im/SSNFS/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 ## Why?
 The reason I started this project is because currently, there is no network file transfer protocol that is:
  * **Secure**
