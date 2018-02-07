@@ -24,6 +24,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <iostream>
+#include <ctime>
 
 #include "common.h"
 
@@ -353,16 +354,33 @@ static int xmp_open(const char *path, struct fuse_file_info *fi)
 {
 	int res;
 
-	char finalPath[strlen(testBase) + strlen(path)];
-	strcpy(finalPath, testBase);
-	strcat(finalPath, path);
+	std::vector<char> operationBytes = Common::getBytes(Common::open);
+	BIO_write(serverConn, operationBytes.data(), operationBytes.size());
+	std::vector<char> opResultBytes;
+	opResultBytes.resize(sizeof(Common::ResultCode));
+	BIO_read(serverConn, opResultBytes.data(), sizeof(Common::ResultCode));
+	Common::ResultCode opResult = Common::getResultFromBytes(opResultBytes.data());
+	if (opResult != Common::OK) {
+		std::cout << "Invalid OPEN operation response." << std::endl;
+		return -ECOMM;
+	}
 
-	res = open(finalPath, fi->flags);
-	if (res == -1)
-		return -errno;
+	std::string strPath = path;
+	std::vector<char> data = Common::getBytes((uint16_t)strPath.length());
+	data.insert(data.end(), strPath.begin(), strPath.end());
+	std::vector<char> flagsBytes = Common::getBytes(fi->flags);
+	data.insert(data.end(), flagsBytes.begin(), flagsBytes.end());
+	BIO_write(serverConn, data.data(), data.size());
 
-	fi->fh = res;
-	return 0;
+	std::vector<char> resultBytes;
+	resultBytes.resize(sizeof(int32_t));
+	BIO_read(serverConn, resultBytes.data(), resultBytes.size());
+	res = Common::getInt32FromBytes(resultBytes.data());
+
+	if (res > 0)
+		fi->fh = res;
+
+	return res > 0 ? 0 : res;
 }
 
 static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
@@ -398,22 +416,51 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 	int fd;
 	int res;
 
-	char finalPath[strlen(testBase) + strlen(path)];
-	strcpy(finalPath, testBase);
-	strcat(finalPath, path);
+	std::clock_t start = std::clock();
 
 	(void) fi;
 	if(fi == NULL)
-		fd = open(finalPath, O_WRONLY);
+		fd = open(path, O_WRONLY);
 	else
 		fd = fi->fh;
 
 	if (fd == -1)
 		return -errno;
 
-	res = pwrite(fd, buf, size, offset);
-	if (res == -1)
-		res = -errno;
+	std::vector<char> operationBytes = Common::getBytes(Common::write);
+	BIO_write(serverConn, operationBytes.data(), operationBytes.size());
+	std::vector<char> opResultBytes;
+	opResultBytes.resize(sizeof(Common::ResultCode));
+	BIO_read(serverConn, opResultBytes.data(), sizeof(Common::ResultCode));
+	Common::ResultCode opResult = Common::getResultFromBytes(opResultBytes.data());
+	if (opResult != Common::OK) {
+		std::cout << "Invalid WRITE operation response." << std::endl;
+		return -ECOMM;
+	}
+
+	std::cout << "Operation done." << (std::clock() - start) / (double) (CLOCKS_PER_SEC / 1000) << std::endl;
+
+
+	std::string strPath = path;
+	std::vector<char> data = Common::getBytes((uint16_t)strPath.length());
+	data.insert(data.end(), strPath.begin(), strPath.end());
+	std::vector<char> fdBytes = Common::getBytes(fd);
+	data.insert(data.end(), fdBytes.begin(), fdBytes.end());
+	std::vector<char> sizeBytes = Common::getBytes(size);
+	data.insert(data.end(), sizeBytes.begin(), sizeBytes.end());
+	std::vector<char> offsetBytes = Common::getBytes(offset);
+	data.insert(data.end(), offsetBytes.begin(), offsetBytes.end());
+	data.insert(data.end(), buf, buf+size);
+	BIO_write(serverConn, data.data(), data.size());
+
+	std::cout << "Sent data." << (std::clock() - start) / (double) (CLOCKS_PER_SEC / 1000) << std::endl;
+
+	std::vector<char> resultBytes;
+	resultBytes.resize(sizeof(int32_t));
+	BIO_read(serverConn, resultBytes.data(), resultBytes.size());
+	res = Common::getInt32FromBytes(resultBytes.data());
+
+	std::cout << "All done." << (std::clock() - start) / (double) (CLOCKS_PER_SEC / 1000) << std::endl;
 
 	if(fi == NULL)
 		close(fd);
@@ -488,7 +535,7 @@ int main(int argc, char *argv[])
 	xmp_oper.utimens	= xmp_utimens;
 #endif
 	xmp_oper.open		= xmp_open;
-	xmp_oper.create 	= xmp_create;
+	//xmp_oper.create 	= xmp_create;
 	xmp_oper.read		= xmp_read;
 	xmp_oper.write		= xmp_write;
 #ifdef HAVE_SETXATTR

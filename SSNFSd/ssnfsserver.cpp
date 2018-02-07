@@ -833,7 +833,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                     socket->waitForBytesWritten(-1);
                 }*/
 
-                dataToWrite.append(Common::readExactBytes(socket, Size, 0));//, sender->timer));
+                dataToWrite.append(Common::readExactBytes(socket, Size));//, sender->timer));
 
                 qDebug() << "Got Data:" << sender->timer.elapsed();
 
@@ -879,6 +879,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 }
 
                 socket->write(Common::getBytes(res));
+                qDebug() << res << "bytes, Done Writing." << sender->timer.elapsed();
 
                 sender->operationData.clear();
                 sender->operationStep = 1;
