@@ -23,3 +23,11 @@ This project's goal is to create a simple way to mount a directory located on a 
 
 ## Coding style
 This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html), with the exception of using tabs instead of spaces.
+
+## Commit Message Template
+Please set .git-commit-template.txt as your commit message template and follow the rules.
+To do so, simply run below command in project root directory:
+
+`git config commit.template .git-commit-template.txt`
+
+Read this [post](https://chris.beams.io/posts/git-commit/) for more info.
