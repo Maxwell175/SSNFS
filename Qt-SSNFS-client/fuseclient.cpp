@@ -162,7 +162,7 @@ void FuseClient::started()
     argv[1] = "-f";
     argv[2] = "-s";
     argv[3] = "-o";
-    argv[4] = "allow_other";
+    argv[4] = "allow_other,direct_io";
     argv[5] = mountPath.toUtf8().data();
 
     fuse_main(argc, argv, &fs_oper, this);
