@@ -15,7 +15,25 @@
 #include <QSslSocket>
 #include <common.h>
 
+#define BUFFER_PER_FILE 10240
+
 typedef struct stat fs_stat;
+
+class WriteRequest
+{
+public:
+    int fd;
+    QString path;
+    int64_t size;
+    int64_t offset;
+    QByteArray data;
+};
+
+class WriteRequestBatch : public QVector<WriteRequest>
+{
+public:
+    uint64_t bytesInBatch = 0;
+};
 
 class FuseClient : public QObject
 {
@@ -35,6 +53,10 @@ private:
     bool SendData(const char *data, signed long long length = -1);
 
     int initSocket();
+
+    QMap<int, WriteRequestBatch> fdBuffers;
+
+    int32_t writeBuffer(int fd);
 
 signals:
 
@@ -64,6 +86,7 @@ public slots:
     int fs_utimens(const char *path, const struct timespec ts[2]);
     int fs_write(const char *path, const char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi);
+    int fs_flush(const char *path, struct fuse_file_info *fi);
     // FUSE callbacks
 
 };

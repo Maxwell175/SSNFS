@@ -128,9 +128,13 @@ static int fs_call_utimens(const char *path, const timespec ts[2])
     return ((FuseClient*)(fuseClnt))->fs_utimens(path, ts);
 }
 static int fs_call_write(const char *path, const char *buf, size_t size,
-                     off_t offset, struct fuse_file_info *fi) {
+                         off_t offset, struct fuse_file_info *fi) {
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_write(path, buf, size, offset, fi);
+}
+static int fs_call_flush(const char *path, struct fuse_file_info *fi) {
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_flush(path, fi);
 }
 
 void FuseClient::started()
@@ -155,6 +159,7 @@ void FuseClient::started()
     fs_oper.truncate = fs_call_truncate;
     fs_oper.utimens = fs_call_utimens;
     fs_oper.write = fs_call_write;
+    fs_oper.flush = fs_call_flush;
 
     int argc = 6;
     char *argv[6];
@@ -873,7 +878,7 @@ int FuseClient::fs_utimens(const char *path, const timespec ts[2])
 }
 
 int FuseClient::fs_write(const char *path, const char *buf, size_t size,
-                    off_t offset, struct fuse_file_info *fi) {
+                         off_t offset, struct fuse_file_info *fi) {
     QTime timer;
     timer.start();
 
@@ -891,37 +896,41 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
     if (fd == -1)
         return -errno;
 
-    qDebug() << "write " << path << ": Before init:" << timer.elapsed();
+    // Run first request directly to check for errors.
+    if (fdBuffers.contains(fd) == false) {
+        fdBuffers.insert(fd, WriteRequestBatch());
 
-    if (initSocket() == -1) {
-        return -ECOMM;
-    }
+        qDebug() << "write " << path << ": Before init:" << timer.elapsed();
 
-    qDebug() << "write " << path << ": Ended handshake:" << timer.elapsed();
+        if (initSocket() == -1) {
+            return -ECOMM;
+        }
 
-    socket->write(Common::getBytes(Common::write));
-    socket->waitForBytesWritten(-1);
+        qDebug() << "write " << path << ": Ended handshake:" << timer.elapsed();
 
-    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
-        qDebug() << "Error during write" << path;
-        return -ECOMM;
-    }
+        socket->write(Common::getBytes(Common::write));
+        socket->waitForBytesWritten(-1);
 
-    socket->write(Common::getBytes((uint16_t)strlen(path)));
-    socket->write(path);
+        if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+            qDebug() << "Error during write" << path;
+            return -ECOMM;
+        }
 
-    qDebug() << "write " << path << ": Sending data:" << timer.elapsed();
+        socket->write(Common::getBytes((uint16_t)strlen(path)));
+        socket->write(path);
 
-    socket->write(Common::getBytes(fd));
+        qDebug() << "write " << path << ": Sending data:" << timer.elapsed();
 
-    socket->write(Common::getBytes((int64_t)size));
+        socket->write(Common::getBytes(fd));
 
-    socket->write(Common::getBytes((int64_t)offset));
+        socket->write(Common::getBytes((int64_t)size));
 
-    //socket->waitForBytesWritten(-1);
+        socket->write(Common::getBytes((int64_t)offset));
 
-    QByteArray bytesToWrite(buf, size);
-    /*int written = 0;
+        //socket->waitForBytesWritten(-1);
+
+        QByteArray bytesToWrite(buf, size);
+        /*int written = 0;
     while (written < size) {
         int32_t sizeToWrite = (4000 > size - written) ? size - written : 4000;
         socket->write(Common::getBytes((int32_t)sizeToWrite));
@@ -934,19 +943,89 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
     }
 
     socket->write(Common::getBytes((int32_t) -1));*/
-    socket->write(bytesToWrite);
-    while (socket->bytesToWrite() > 0)
-        socket->waitForBytesWritten(-1);
+        socket->write(bytesToWrite);
+        while (socket->bytesToWrite() > 0)
+            socket->waitForBytesWritten(-1);
 
-    qDebug() << "write " << path << ": Waiting for reply:" << timer.elapsed();
-    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
-    qDebug() << "write " << path << ": Got first reply:" << timer.elapsed();
+        qDebug() << "write " << path << ": Waiting for reply:" << timer.elapsed();
+        res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+        qDebug() << "write " << path << ": Got first reply:" << timer.elapsed();
 
-    if (res < 0) {
-        qWarning() << "Warning! bad return code!";
+        if (res < 0) {
+            qWarning() << "Warning! bad return code!";
+        }
+
+        qDebug() << "write " << path << ":" << res <<"bytes Done:" << timer.elapsed();
+
+        return res;
+    } else {
+        WriteRequest req;
+        req.fd = fd;
+        req.path = path;
+        req.size = (int64_t)size;
+        req.offset = (int64_t)offset;
+        req.data.resize(size);
+        std::copy(buf, buf+size, req.data.begin());
+        fdBuffers[fd].append(req);
+        fdBuffers[fd].bytesInBatch += size;
+
+        int bytesPerBatch = 10240;
+        if (offset > 50 * 1000000) {
+            bytesPerBatch = 102400;
+        }
+
+        if (fdBuffers[fd].bytesInBatch > bytesPerBatch) {
+            int result = writeBuffer(fd);
+
+            return result == 0 ? size : result;
+        } else {
+            return size;
+        }
+    }
+}
+
+int32_t FuseClient::writeBuffer(int fd)
+{
+    if (initSocket() == -1) {
+        return -ECOMM;
     }
 
-    qDebug() << "write " << path << ":" << res <<"bytes Done:" << timer.elapsed();
+    socket->write(Common::getBytes(Common::writebulk));
+    socket->waitForBytesWritten(-1);
 
-    return res;
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during writebulk";
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint32_t)fdBuffers[fd].length()));
+
+    for (int i = 0; i < fdBuffers[fd].length(); i++) {
+        socket->write(Common::getBytes((uint16_t)fdBuffers[fd][i].path.length()));
+        socket->write(fdBuffers[fd][i].path.toUtf8());
+
+        socket->write(Common::getBytes(fdBuffers[fd][i].fd));
+
+        socket->write(Common::getBytes(fdBuffers[fd][i].size));
+
+        socket->write(Common::getBytes(fdBuffers[fd][i].offset));
+
+        socket->write(fdBuffers[fd][i].data);
+    }
+    qDebug() << socket->bytesToWrite();
+    socket->waitForBytesWritten(-1);
+    socket->waitForReadyRead(-1);
+
+    int32_t result = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    fdBuffers[fd].clear();
+    fdBuffers[fd].bytesInBatch = 0;
+
+    return result;
+}
+
+int FuseClient::fs_flush(const char *path, fuse_file_info *fi)
+{
+    return writeBuffer(fi->fh);
+    // TODO: add call to `close(dup(fi->fh)` on server! See: https://github.com/libfuse/libfuse/blob/master/example/passthrough_fh.c#L466
 }
