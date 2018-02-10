@@ -132,9 +132,9 @@ static int fs_call_write(const char *path, const char *buf, size_t size,
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_write(path, buf, size, offset, fi);
 }
-static int fs_call_flush(const char *path, struct fuse_file_info *fi) {
+static int fs_call_release(const char *path, struct fuse_file_info *fi) {
     void *fuseClnt = fuse_get_context()->private_data;
-    return ((FuseClient*)(fuseClnt))->fs_flush(path, fi);
+    return ((FuseClient*)(fuseClnt))->fs_release(path, fi);
 }
 
 void FuseClient::started()
@@ -159,7 +159,7 @@ void FuseClient::started()
     fs_oper.truncate = fs_call_truncate;
     fs_oper.utimens = fs_call_utimens;
     fs_oper.write = fs_call_write;
-    fs_oper.flush = fs_call_flush;
+    fs_oper.release = fs_call_release;
 
     int argc = 6;
     char *argv[6];
@@ -959,19 +959,25 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
 
         return res;
     } else {
-        WriteRequest req;
-        req.fd = fd;
-        req.path = path;
-        req.size = (int64_t)size;
-        req.offset = (int64_t)offset;
-        req.data.resize(size);
-        std::copy(buf, buf+size, req.data.begin());
-        fdBuffers[fd].append(req);
+        // Attempt to optimize things a little by checking if this write is consecutive to the last.
+        if (fdBuffers[fd].length() > 0 && fdBuffers[fd].last().offset + fdBuffers[fd].last().size == offset) {
+            // If so, combine them.
+            fdBuffers[fd].last().data.append(buf, size);
+            fdBuffers[fd].last().size += size;
+        } else {
+            WriteRequest req;
+            req.fd = fd;
+            req.path = path;
+            req.size = (int64_t)size;
+            req.offset = (int64_t)offset;
+            req.data.append(buf, size);
+            fdBuffers[fd].append(req);
+        }
         fdBuffers[fd].bytesInBatch += size;
 
-        int bytesPerBatch = 10240;
+        int bytesPerBatch = 102400;
         if (offset > 50 * 1000000) {
-            bytesPerBatch = 102400;
+            bytesPerBatch = 1024000;
         }
 
         if (fdBuffers[fd].bytesInBatch > bytesPerBatch) {
@@ -1024,8 +1030,37 @@ int32_t FuseClient::writeBuffer(int fd)
     return result;
 }
 
-int FuseClient::fs_flush(const char *path, fuse_file_info *fi)
+int FuseClient::fs_release(const char *path, fuse_file_info *fi)
 {
-    return writeBuffer(fi->fh);
-    // TODO: add call to `close(dup(fi->fh)` on server! See: https://github.com/libfuse/libfuse/blob/master/example/passthrough_fh.c#L466
+    QTime timer;
+    timer.start();
+
+    int res = writeBuffer(fi->fh);
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "release " << path << ": Ended handshake:" << timer.elapsed();
+
+    socket->write(Common::getBytes(Common::release));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during release" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    socket->write(Common::getBytes((int32_t)fi->fh));
+    socket->waitForBytesWritten(-1);
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "release " << path << ": Done" << timer.elapsed();
+
+    return res;
 }

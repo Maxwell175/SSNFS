@@ -994,6 +994,69 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
             }
                 break;
             }
+        } else if (sender->operation == Common::release) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                int res;
+
+                int32_t fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+                int realFd = sender->fds.value(fakeFd);
+
+                // We will now use the proc virtual filesystem to look up info about the File Descriptor.
+                QString procFdPath = tr("/proc/self/fd/%1").arg(realFd);
+
+                struct stat procFdInfo;
+
+                lstat(procFdPath.toUtf8().data(), &procFdInfo);
+
+                QVector<char> actualFdFilePath;
+                actualFdFilePath.fill('\x00', procFdInfo.st_size + 1);
+
+                ssize_t r = readlink(procFdPath.toUtf8().data(), actualFdFilePath.data(), procFdInfo.st_size + 1);
+
+                if (r < 0) {
+                    res = -errno;
+                } else {
+                    actualFdFilePath[procFdInfo.st_size] = '\0';
+                    if (r > procFdInfo.st_size) {
+                        qWarning() << "The File Descriptor link in /proc increased in size" <<
+                                      "between lstat() and readlink()! old size:" << procFdInfo.st_size
+                                   << " new size:" << r << " readlink result:" << actualFdFilePath;
+                        res = -1;
+                    } else {
+                        if (finalPath == actualFdFilePath.data()) {
+                            res = ::close(realFd);
+                            if (res == -1)
+                                res = -errno;
+                        } else {
+                            res = -EBADF;
+                        }
+                    }
+                }
+
+                socket->write(Common::getBytes(res));
+
+                sender->fds.remove(fakeFd);
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
         }
     }
         break;
