@@ -17,8 +17,8 @@ This project's goal is to create a simple way to mount a directory located on a 
 ## Progress
 
  * Read only mode (Completed) 
- * Read Write mode (In Progress) 
- * Configuration 
+ * Read Write mode (Completed) 
+ * Configuration (In Progress)
  * Managment interface?
 
 ## Coding style
