@@ -35,6 +35,9 @@ FuseClient::FuseClient(QObject *parent) : QObject(parent),
 {
     moveToThread(&myThread);
     connect(&myThread, SIGNAL(started()), this, SLOT(started()), Qt::QueuedConnection);
+    connect(&myThread, &QThread::finished, []() {
+        qApp->quit();
+    });
     myThread.start();
 }
 
@@ -140,6 +143,10 @@ static int fs_call_statfs(const char *path, struct statvfs *stbuf) {
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_statfs(path, stbuf);
 }
+static void fs_call_destroy(void *private_data) {
+    void *fuseClnt = fuse_get_context()->private_data;
+    ((FuseClient*)(fuseClnt))->fs_destroy();
+}
 
 void FuseClient::started()
 {
@@ -165,6 +172,7 @@ void FuseClient::started()
     fs_oper.write = fs_call_write;
     fs_oper.release = fs_call_release;
     fs_oper.statfs = fs_call_statfs;
+    fs_oper.destroy = fs_call_destroy;
 
     int argc = 6;
     char *argv[6];
@@ -176,6 +184,8 @@ void FuseClient::started()
     argv[5] = mountPath.toUtf8().data();
 
     fuse_main(argc, argv, &fs_oper, this);
+
+    myThread.quit();
 }
 
 int FuseClient::initSocket()
@@ -983,7 +993,7 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
         int bytesPerBatch = 1048576; // 1MB
 
         if (clientWriteBuffer.bytesInBatch > bytesPerBatch) {
-            int result = writeBuffer(path);
+            int result = writeBuffer();
 
             return result == 0 ? size : result;
         } else {
@@ -992,7 +1002,7 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
     }
 }
 
-int32_t FuseClient::writeBuffer(QString path)
+int32_t FuseClient::writeBuffer()
 {
     if (initSocket() == -1) {
         return -ECOMM;
@@ -1037,7 +1047,7 @@ int FuseClient::fs_release(const char *path, fuse_file_info *fi)
     QTime timer;
     timer.start();
 
-    int res = writeBuffer(path);
+    int res = writeBuffer();
 
     if (initSocket() == -1) {
         return -ECOMM;
@@ -1100,4 +1110,9 @@ int FuseClient::fs_statfs(const char *path, fs_statvfs *stbuf)
     qDebug() << "statfs " << path << ": Done" << timer.elapsed();
 
     return res;
+}
+
+void FuseClient::fs_destroy()
+{
+    writeBuffer();
 }

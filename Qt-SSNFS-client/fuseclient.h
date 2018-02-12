@@ -59,7 +59,7 @@ private:
 
     WriteRequestBatch clientWriteBuffer;
 
-    int32_t writeBuffer(QString path);
+    int32_t writeBuffer();
 
 signals:
 
@@ -91,6 +91,7 @@ public slots:
                         off_t offset, struct fuse_file_info *fi);
     int fs_release(const char *path, struct fuse_file_info *fi);
     int fs_statfs(const char *path, fs_statvfs *stbuf);
+    void fs_destroy();
     // FUSE callbacks
 
 };
