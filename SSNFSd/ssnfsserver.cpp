@@ -10,6 +10,7 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/statvfs.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -18,6 +19,7 @@
 
 #include <QEventLoop>
 #include <QDir>
+#include <QStorageInfo>
 
 #include <limits>
 #include <errno.h>
@@ -1050,6 +1052,53 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 socket->write(Common::getBytes(res));
 
                 sender->fds.remove(fakeFd);
+
+                sender->status = WaitingForOperation;
+
+                sender->working = false;
+            }
+                break;
+            }
+        } else if (sender->operation == Common::statfs) {
+            switch (sender->operationStep) {
+            case 1:
+            {
+                if (sender->working)
+                    return;
+                sender->working = true;
+
+                uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
+
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+
+                QString finalPath(testBase);
+                finalPath.append(targetPath);
+
+                int res;
+
+                struct statvfs fsInfo;
+
+                // No need to expose any info about what the system drive looks like.
+                // Just make stuff up.
+                fsInfo.f_namemax = 255;
+                fsInfo.f_bsize = fsInfo.f_frsize = 4096;
+                fsInfo.f_files = fsInfo.f_ffree = fsInfo.f_favail = 1000000000;
+
+                QStorageInfo storage(finalPath);
+                if (storage.isValid() && storage.isReady()) {
+                        fsInfo.f_blocks = storage.bytesTotal() / fsInfo.f_frsize;
+                        fsInfo.f_bfree = fsInfo.f_bavail = storage.bytesAvailable() /fsInfo.f_bsize;
+                } else {
+                    res = -EFAULT;
+                }
+
+                QByteArray fsInfoData;
+                fsInfoData.fill('\x00', sizeof(struct statvfs));
+                memcpy(fsInfoData.data(), &fsInfo, sizeof(struct statvfs));
+
+                socket->write(fsInfoData);
+
+                socket->write(Common::getBytes(res));
 
                 sender->status = WaitingForOperation;
 

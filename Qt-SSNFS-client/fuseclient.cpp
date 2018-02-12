@@ -136,6 +136,10 @@ static int fs_call_release(const char *path, struct fuse_file_info *fi) {
     void *fuseClnt = fuse_get_context()->private_data;
     return ((FuseClient*)(fuseClnt))->fs_release(path, fi);
 }
+static int fs_call_statfs(const char *path, struct statvfs *stbuf) {
+    void *fuseClnt = fuse_get_context()->private_data;
+    return ((FuseClient*)(fuseClnt))->fs_statfs(path, stbuf);
+}
 
 void FuseClient::started()
 {
@@ -160,6 +164,7 @@ void FuseClient::started()
     fs_oper.utimens = fs_call_utimens;
     fs_oper.write = fs_call_write;
     fs_oper.release = fs_call_release;
+    fs_oper.statfs = fs_call_statfs;
 
     int argc = 6;
     char *argv[6];
@@ -1058,6 +1063,41 @@ int FuseClient::fs_release(const char *path, fuse_file_info *fi)
     res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
     qDebug() << "release " << path << ": Done" << timer.elapsed();
+
+    return res;
+}
+
+int FuseClient::fs_statfs(const char *path, fs_statvfs *stbuf)
+{
+    QTime timer;
+    timer.start();
+
+    if (initSocket() == -1) {
+        return -ECOMM;
+    }
+
+    // TODO: Log the HELLO msg.
+    qDebug() << "statfs " << path << ": Ended handshake:" << timer.elapsed();
+
+    int res;
+
+    socket->write(Common::getBytes(Common::statfs));
+    socket->waitForBytesWritten(-1);
+
+    if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::OK) {
+        qDebug() << "Error during statfs" << path;
+        return -ECOMM;
+    }
+
+    socket->write(Common::getBytes((uint16_t)strlen(path)));
+    socket->write(path);
+
+    QByteArray bufBytes = Common::readExactBytes(socket, sizeof(struct statvfs));
+    memcpy(stbuf, bufBytes.data(), bufBytes.length());
+
+    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+
+    qDebug() << "statfs " << path << ": Done" << timer.elapsed();
 
     return res;
 }

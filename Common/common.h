@@ -17,7 +17,7 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const uint16_t MAX_OPERATION = 18;
+    const uint16_t MAX_OPERATION = 19;
     enum Operation : uint16_t {
         getattr = 0,
         readdir = 1,
@@ -38,6 +38,7 @@ namespace Common {
         write = 16,
         writebulk = 17,
         release = 18,
+        statfs = 19,
 
         InvalidOperation = UINT16_MAX
     };

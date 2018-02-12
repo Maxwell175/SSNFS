@@ -18,6 +18,7 @@
 #define BUFFER_PER_FILE 10240
 
 typedef struct stat fs_stat;
+typedef struct statvfs fs_statvfs;
 
 class WriteRequest
 {
@@ -89,6 +90,7 @@ public slots:
     int fs_write(const char *path, const char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi);
     int fs_release(const char *path, struct fuse_file_info *fi);
+    int fs_statfs(const char *path, fs_statvfs *stbuf);
     // FUSE callbacks
 
 };
