@@ -1074,7 +1074,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
                 QString finalPath(testBase);
                 finalPath.append(targetPath);
 
-                int res;
+                int res = 0;
 
                 struct statvfs fsInfo;
 
@@ -1086,8 +1086,9 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 QStorageInfo storage(finalPath);
                 if (storage.isValid() && storage.isReady()) {
-                        fsInfo.f_blocks = storage.bytesTotal() / fsInfo.f_frsize;
-                        fsInfo.f_bfree = fsInfo.f_bavail = storage.bytesAvailable() /fsInfo.f_bsize;
+                    fsInfo.f_blocks = storage.bytesTotal() / fsInfo.f_frsize;
+                    fsInfo.f_bfree = fsInfo.f_bavail = storage.bytesAvailable() /fsInfo.f_bsize;
+                    res = 0;
                 } else {
                     res = -EFAULT;
                 }
