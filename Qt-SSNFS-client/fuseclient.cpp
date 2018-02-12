@@ -897,8 +897,8 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
         return -errno;
 
     // Run first request directly to check for errors.
-    if (fdBuffers.contains(fd) == false) {
-        fdBuffers.insert(fd, WriteRequestBatch());
+    if (clientWriteBuffer.FdsUsed.contains(fd) == false) {
+        clientWriteBuffer.FdsUsed.push_back(fd);
 
         qDebug() << "write " << path << ": Before init:" << timer.elapsed();
 
@@ -960,10 +960,10 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
         return res;
     } else {
         // Attempt to optimize things a little by checking if this write is consecutive to the last.
-        if (fdBuffers[fd].length() > 0 && fdBuffers[fd].last().offset + fdBuffers[fd].last().size == offset) {
+        if (clientWriteBuffer.length() > 0 && clientWriteBuffer.last().fd == fd && clientWriteBuffer.last().offset + clientWriteBuffer.last().size == offset) {
             // If so, combine them.
-            fdBuffers[fd].last().data.append(buf, size);
-            fdBuffers[fd].last().size += size;
+            clientWriteBuffer.last().data.append(buf, size);
+            clientWriteBuffer.last().size += size;
         } else {
             WriteRequest req;
             req.fd = fd;
@@ -971,17 +971,14 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
             req.size = (int64_t)size;
             req.offset = (int64_t)offset;
             req.data.append(buf, size);
-            fdBuffers[fd].append(req);
+            clientWriteBuffer.append(req);
         }
-        fdBuffers[fd].bytesInBatch += size;
+        clientWriteBuffer.bytesInBatch += size;
 
-        int bytesPerBatch = 102400;
-        if (offset > 50 * 1000000) {
-            bytesPerBatch = 1024000;
-        }
+        int bytesPerBatch = 1048576; // 1MB
 
-        if (fdBuffers[fd].bytesInBatch > bytesPerBatch) {
-            int result = writeBuffer(fd);
+        if (clientWriteBuffer.bytesInBatch > bytesPerBatch) {
+            int result = writeBuffer(path);
 
             return result == 0 ? size : result;
         } else {
@@ -990,7 +987,7 @@ int FuseClient::fs_write(const char *path, const char *buf, size_t size,
     }
 }
 
-int32_t FuseClient::writeBuffer(int fd)
+int32_t FuseClient::writeBuffer(QString path)
 {
     if (initSocket() == -1) {
         return -ECOMM;
@@ -1004,19 +1001,19 @@ int32_t FuseClient::writeBuffer(int fd)
         return -ECOMM;
     }
 
-    socket->write(Common::getBytes((uint32_t)fdBuffers[fd].length()));
+    socket->write(Common::getBytes((uint32_t)clientWriteBuffer.length()));
 
-    for (int i = 0; i < fdBuffers[fd].length(); i++) {
-        socket->write(Common::getBytes((uint16_t)fdBuffers[fd][i].path.length()));
-        socket->write(fdBuffers[fd][i].path.toUtf8());
+    for (int i = 0; i < clientWriteBuffer.length(); i++) {
+        socket->write(Common::getBytes((uint16_t)clientWriteBuffer[i].path.length()));
+        socket->write(clientWriteBuffer[i].path.toUtf8());
 
-        socket->write(Common::getBytes(fdBuffers[fd][i].fd));
+        socket->write(Common::getBytes(clientWriteBuffer[i].fd));
 
-        socket->write(Common::getBytes(fdBuffers[fd][i].size));
+        socket->write(Common::getBytes(clientWriteBuffer[i].size));
 
-        socket->write(Common::getBytes(fdBuffers[fd][i].offset));
+        socket->write(Common::getBytes(clientWriteBuffer[i].offset));
 
-        socket->write(fdBuffers[fd][i].data);
+        socket->write(clientWriteBuffer[i].data);
     }
     qDebug() << socket->bytesToWrite();
     socket->waitForBytesWritten(-1);
@@ -1024,8 +1021,8 @@ int32_t FuseClient::writeBuffer(int fd)
 
     int32_t result = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-    fdBuffers[fd].clear();
-    fdBuffers[fd].bytesInBatch = 0;
+    clientWriteBuffer.clear();
+    clientWriteBuffer.bytesInBatch = 0;
 
     return result;
 }
@@ -1035,7 +1032,7 @@ int FuseClient::fs_release(const char *path, fuse_file_info *fi)
     QTime timer;
     timer.start();
 
-    int res = writeBuffer(fi->fh);
+    int res = writeBuffer(path);
 
     if (initSocket() == -1) {
         return -ECOMM;

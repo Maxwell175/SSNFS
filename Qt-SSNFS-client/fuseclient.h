@@ -33,6 +33,8 @@ class WriteRequestBatch : public QVector<WriteRequest>
 {
 public:
     uint64_t bytesInBatch = 0;
+
+    QVector<int> FdsUsed;
 };
 
 class FuseClient : public QObject
@@ -54,9 +56,9 @@ private:
 
     int initSocket();
 
-    QMap<int, WriteRequestBatch> fdBuffers;
+    WriteRequestBatch clientWriteBuffer;
 
-    int32_t writeBuffer(int fd);
+    int32_t writeBuffer(QString path);
 
 signals:
 
