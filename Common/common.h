@@ -8,11 +8,13 @@
 #include <unistd.h>
 
 namespace Common {
-    const uint8_t MAX_RESULTCODE = 1;
+    const uint8_t MAX_RESULTCODE = 2;
     enum ResultCode : uint8_t {
         Hello = 0,
         OK = 1,
         Error = 2,
+
+        HTTP_GET = 'G',
 
         InvalidResult = UINT8_MAX
     };
@@ -149,7 +151,7 @@ namespace Common {
         uint8_t result = 0;
         result |= ((uint8_t)input[0]);
 
-        if (result > MAX_RESULTCODE)
+        if (result > MAX_RESULTCODE && result != 'G')
             return ResultCode::InvalidResult;
         else
             return (ResultCode) result;

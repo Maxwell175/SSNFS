@@ -125,7 +125,11 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
     switch (sender->status) {
     case WaitingForHello:
     {
-        if (Common::getResultFromBytes(Common::readExactBytes(socket, 1)) != Common::Hello) {
+        Common::ResultCode clientResult = Common::getResultFromBytes(Common::readExactBytes(socket, 1));
+        if (clientResult == Common::HTTP_GET) {
+            processHttpRequest(sender);
+            return;
+        } else if (clientResult != Common::Hello) {
             if (socket->isOpen()) {
                 socket->close();
             }
@@ -1111,4 +1115,33 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
     }
         break;
     }
+}
+
+void SSNFSServer::processHttpRequest(SSNFSClient *sender)
+{
+    while (sender->socket->canReadLine() == false) {
+        sender->socket->waitForReadyRead(-1);
+    }
+    QString RequestLine = sender->socket->readLine();
+    QString RequestPath = RequestLine.split(" ")[1];
+    QMap<QString, QString> Headers;
+    while (true) {
+        while (sender->socket->canReadLine() == false) {
+            sender->socket->waitForReadyRead(-1);
+        }
+        QString HeaderLine = sender->socket->readLine();
+        HeaderLine = HeaderLine.trimmed();
+        if (HeaderLine.isEmpty())
+            break;
+        int HeaderNameLen = HeaderLine.indexOf(": ");
+        Headers.insert(HeaderLine.mid(0, HeaderNameLen), HeaderLine.mid(HeaderNameLen + 2));
+    }
+    sender->socket->write("HTTP/1.1 200 OK\r\n");
+    sender->socket->write("Content-Type: text/html\r\n");
+    // Let the browser know we plan to close this conenction.
+    sender->socket->write("Connection: close\r\n\r\n");
+    sender->socket->write(tr("<html><body><h1>Hello World</h1><h3>You requested: %1</h3><h4>Headers:</h4><pre>").arg(RequestPath).toUtf8());
+    QDebug(sender->socket) << Headers;
+    sender->socket->write("</pre></body></html>");
+    sender->socket->close();
 }

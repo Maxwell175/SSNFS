@@ -51,6 +51,8 @@ private:
 
     QList<SSNFSClient*> clients;
 
+    void processHttpRequest(SSNFSClient *sender);
+
 private slots:
     void sslErrorsOccurred(SSNFSClient *sender, const QList<QSslError> &errors);
     void socketError(SSNFSClient *sender, QAbstractSocket::SocketError socketError);
