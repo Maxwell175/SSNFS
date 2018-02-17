@@ -24,6 +24,8 @@
 #include <limits>
 #include <errno.h>
 
+#include <spdlog/spdlog.h>
+
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
 #define HELLO_STR "SSNFS server version " STR(_SERVER_VERSION)

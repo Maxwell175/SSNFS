@@ -8,6 +8,8 @@
 
 #include <QCoreApplication>
 
+#include <spdlog/spdlog.h>
+
 #include "ssnfsserver.h"
 
 int main(int argc, char *argv[])
