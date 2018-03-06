@@ -7,6 +7,7 @@
  */
 
 #include "ssnfsserver.h"
+#include "log.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -20,11 +21,12 @@
 #include <QEventLoop>
 #include <QDir>
 #include <QStorageInfo>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QSqlResult>
 
 #include <limits>
 #include <errno.h>
-
-#include <spdlog/spdlog.h>
 
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
@@ -35,8 +37,7 @@
 SSNFSServer::SSNFSServer(QObject *parent)
     : QTcpServer(parent), testBase("/home/maxwell/fuse-test-base"), // This is the directory that we will serve up.
       privateKeyPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.key"),
-      certPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.crt"),
-      caCertPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/ca.crt")
+      certPath("/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.crt")
 {
 
 }
@@ -46,7 +47,6 @@ void SSNFSServer::incomingConnection(qintptr socketDescriptor)
     QSslSocket *socket = new QSslSocket();
 
     socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-    socket->addCaCertificates(caCertPath);
     socket->setLocalCertificate(certPath);
     socket->setPrivateKey(privateKeyPath);
     //socket->setProtocol(QSsl::TlsV1SslV3);
@@ -92,9 +92,7 @@ void SSNFSServer::sslErrorsOccurred(SSNFSClient *sender, const QList<QSslError> 
 
 void SSNFSServer::socketError(SSNFSClient *sender, QAbstractSocket::SocketError socketError)
 {
-    if (sender->status != WaitingForHello && sender->status != WaitingForOperation) {
-        return;
-    }
+    (void) socketError;
 
     qDebug() << sender->socket->errorString();
 
@@ -912,7 +910,7 @@ void SSNFSServer::ReadyToRead(SSNFSClient *sender)
 
                 int32_t result = 0;
 
-                for (int i = 0; i < numOfRequests; i++) {
+                for (uint32_t i = 0; i < numOfRequests; i++) {
 
                     uint16_t pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 

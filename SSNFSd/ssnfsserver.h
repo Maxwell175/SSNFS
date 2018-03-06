@@ -12,7 +12,9 @@
 #include <QTcpServer>
 #include <QSslSocket>
 #include <QList>
+#include <QSqlDatabase>
 #include <common.h>
+#include <spdlog/spdlog.h>
 
 enum ClientStatus {
     WaitingForHello,
@@ -44,10 +46,11 @@ public:
     SSNFSServer(QObject *parent = 0);
 
 private:
+    QSqlDatabase configDB;
+
     QString testBase;
     QString privateKeyPath;
     QString certPath;
-    QString caCertPath;
 
     QList<SSNFSClient*> clients;
 

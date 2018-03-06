@@ -8,7 +8,7 @@
 QT += core
 QT -= gui
 
-QT += network
+QT += network sql
 
 CONFIG += c++11
 
@@ -21,13 +21,16 @@ TEMPLATE = app
 include(../Common/Common.pri)
 
 SOURCES += main.cpp \
-    ssnfsserver.cpp
+    ssnfsserver.cpp \
+    serverconfig.cpp
 
 HEADERS += \
-    ssnfsserver.h
+    ssnfsserver.h \
+    serverconfig.h \
+    log.h
 
+DEFINES += _SERVER_VERSION=0.1
+DEFINES += "_CONFIG_DIR=\"\\\"$$PWD\\\"\""
 
-QMAKE_CXXFLAGS += -D_FILE_OFFSET_BITS=64
-QMAKE_CXXFLAGS += -D_XOPEN_SOURCE=700
-
-QMAKE_CXXFLAGS += -D_SERVER_VERSION=0.1
+DEFINES += _FILE_OFFSET_BITS=64
+DEFINES += _XOPEN_SOURCE=700
