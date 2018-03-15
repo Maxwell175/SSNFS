@@ -11,6 +11,7 @@
 #include <QUrl>
 #include <QDateTime>
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/ostr.h>
 #include <stdexcept>
 
 QSqlDatabase getConfDB();
@@ -141,16 +142,18 @@ public:
                 while (getCategories.next()) {
                     if (getCategories.value(1).toString().contains("error"))
                         Categories[getCategories.value(0).toString()].errorOutputs.append(Outputs.last());
-                    if (getCategories.value(1).toString().contains("warning"))
+                    if (getCategories.value(1).toString().contains("warn"))
                         Categories[getCategories.value(0).toString()].warningOutputs.append(Outputs.last());
                     if (getCategories.value(1).toString().contains("info"))
                         Categories[getCategories.value(0).toString()].infoOutputs.append(Outputs.last());
                 }
-                Outputs.last().logger->info("Opened log for writing.");
+                Outputs.last().logger->info("Opened {0} for logging.", QUrl(logsQuery.value(2).toString()).scheme().toUtf8().data());
             } catch (std::invalid_argument) {
                 qWarning() << "Warning: Unable to identify log backend for uri:" << logsQuery.value(1).toString();
             }
         }
+
+        isInit = true;
     }
 
     template <typename... Args> static inline void error(const LogCategory& category, const char* fmt, const Args&... args) {

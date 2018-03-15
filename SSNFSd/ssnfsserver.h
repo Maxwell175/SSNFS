@@ -13,6 +13,7 @@
 #include <QSslSocket>
 #include <QList>
 #include <QSqlDatabase>
+#include <QSslKey>
 #include <common.h>
 #include <spdlog/spdlog.h>
 
@@ -49,8 +50,9 @@ private:
     QSqlDatabase configDB;
 
     QString testBase;
-    QString privateKeyPath;
-    QString certPath;
+
+    QSslKey privateKey;
+    QSslCertificate certificate;
 
     QList<SSNFSClient*> clients;
 

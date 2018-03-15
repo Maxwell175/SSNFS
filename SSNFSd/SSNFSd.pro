@@ -22,12 +22,12 @@ include(../Common/Common.pri)
 
 SOURCES += main.cpp \
     ssnfsserver.cpp \
-    serverconfig.cpp
+    serversettings.cpp
 
 HEADERS += \
     ssnfsserver.h \
-    serverconfig.h \
-    log.h
+    log.h \
+    serversettings.h
 
 DEFINES += _SERVER_VERSION=0.1
 DEFINES += "_CONFIG_DIR=\"\\\"$$PWD\\\"\""
