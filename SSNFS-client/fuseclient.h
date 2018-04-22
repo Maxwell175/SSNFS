@@ -13,6 +13,7 @@
 #include <QThread>
 #include <fuse.h>
 #include <QSslSocket>
+#include <QFileSystemWatcher>
 #include <common.h>
 
 #define BUFFER_PER_FILE 10240
@@ -20,20 +21,26 @@
 typedef struct stat fs_stat;
 typedef struct statvfs fs_statvfs;
 
+struct FuseOpts {
+    char *certPath;
+    char *privKeyPath;
+};
+#define FUSE_OPT(t, p, v) { t, offsetof(struct FuseOpts, p), v }
+
 class WriteRequest
 {
 public:
     int fd;
     QString path;
-    int64_t size;
-    int64_t offset;
+    qint64 size;
+    qint64 offset;
     QByteArray data;
 };
 
 class WriteRequestBatch : public QVector<WriteRequest>
 {
 public:
-    uint64_t bytesInBatch = 0;
+    quint64 bytesInBatch = 0;
 
     QVector<int> FdsUsed;
 };
@@ -46,11 +53,16 @@ public:
 
 private:
     QString mountPath;
-    QString caCertPath;
+    QString host;
+    quint16 port;
+    QString shareName;
+    struct FuseOpts opts;
 
     QThread myThread;
 
     QSslSocket *socket = new QSslSocket(this);
+
+    QFileSystemWatcher passwdWatcher;
 
     QByteArray ReadData(int timeoutMsec = -1);
     bool SendData(const char *data, signed long long length = -1);
@@ -59,15 +71,18 @@ private:
 
     WriteRequestBatch clientWriteBuffer;
 
-    int32_t writeBuffer();
+    qint32 writeBuffer();
 
 signals:
 
 private slots:
     void started();
+    void syncLocalUsers();
 
 public slots:
     // FUSE callbacks
+    int fs_opt_proc(void *data, const char *arg, int key, struct fuse_args *outargs);
+
     void *fs_init(struct fuse_conn_info *conn);
     int fs_getattr(const char *path, fs_stat *stbuf);
     int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,

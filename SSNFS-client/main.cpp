@@ -7,12 +7,14 @@
  */
 
 #include <QCoreApplication>
-
-#include "fuseclient.h"
+#include <stdio.h>
+#include <fuseclient.h>
 
 int main(int argc, char *argv[])
 {
     qputenv("QT_LOGGING_RULES", "qt.network.ssl.warning=false");
+
+    qInfo() << Common::getSystemInfo();
 
     QCoreApplication app(argc, argv);
 
@@ -21,5 +23,5 @@ int main(int argc, char *argv[])
 
     FuseClient client;
 
-    app.exec();
+    return app.exec();
 }

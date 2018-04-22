@@ -25,6 +25,8 @@ int main(int argc, char *argv[])
 
     QCoreApplication app(argc, argv);
 
+    //qRegisterMetaType<SSNFSClient*>("SSNFSClient*");
+
     Log::init();
 
     ServerSettings::reloadSettings();

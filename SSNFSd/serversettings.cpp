@@ -22,7 +22,7 @@ void ServerSettings::reloadSettings() {
             m_settings[settingName] = SettingInfo(settingName, settingValue, settingDesc, settingTmStmp, settingUser);
         }
     } else {
-        Log::error(Log::Categories["Server"], "Error retrieving configuration Settings from DB: {0}", query.lastError().text().toUtf8().data());
+        Log::error(Log::Categories["Server"], "Error retrieving configuration settings from DB: {0}", query.lastError().text().toUtf8().data());
     }
 }
 
@@ -40,7 +40,7 @@ const QString ServerSettings::set(QString key, QString value, QString updtUser) 
         m_settings[key] = SettingInfo(key, value, m_settings[key].description(), QDateTime::currentDateTime(), updtUser);
         return value;
     } else {
-        Log::error(Log::Categories["Server"], "Error setting configuration Settingm DB: {0}", query.lastError().text().toUtf8().data());
+        Log::error(Log::Categories["Server"], "Error setting configuration setting in DB: {0}", query.lastError().text().toUtf8().data());
         return QString();
     }
 
