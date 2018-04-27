@@ -12,7 +12,7 @@ The reason I started this project is because currently, there is no network file
  
  ## The goal 
  
-This project's goal is to create a simple way to mount a directory located on a server to one or more clients used the most security conscientious way available.
+This project's goal is to create a simple way to mount a directory located on a server to one or more clients using the most security conscientious way available.
 
 ## Progress
 
@@ -25,8 +25,8 @@ This project's goal is to create a simple way to mount a directory located on a 
 This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
 
 ## Commit Message Template
-Please set .git-commit-template.txt as your commit message template and follow the rules.
-To do so, simply run below command in project root directory:
+Please set .git-commit-template.txt as your commit message template and follow the rules set forth therein.
+To do so, simply run the following command in project root directory:
 
 `git config commit.template .git-commit-template.txt`
 
