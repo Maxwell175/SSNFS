@@ -18,6 +18,10 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
+QMAKE_CFLAGS_WARN_ON -= -Wall
+QMAKE_CXXFLAGS_WARN_ON -= -Wall
+QMAKE_CFLAGS += -Wno-unused-variable
+QMAKE_CXXFLAGS += -Wno-unused-variable
 
 include(../Common/Common.pri)
 
