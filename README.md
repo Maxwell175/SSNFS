@@ -22,7 +22,7 @@ This project's goal is to create a simple way to mount a directory located on a 
  * Managment interface (In Progress)
 
 ## Coding style
-This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html), with the exception of using tabs instead of spaces.
+This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
 
 ## Commit Message Template
 Please set .git-commit-template.txt as your commit message template and follow the rules.
