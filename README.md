@@ -18,8 +18,8 @@ This project's goal is to create a simple way to mount a directory located on a 
 
  * Read only mode (Completed) 
  * Read Write mode (Completed) 
- * Configuration (In Progress)
- * Managment interface?
+ * Configuration (Completed)
+ * Managment interface (In Progress)
 
 ## Coding style
 This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html), with the exception of using tabs instead of spaces.
