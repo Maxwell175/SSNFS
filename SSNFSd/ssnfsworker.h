@@ -6,6 +6,7 @@
 #include <QSslSocket>
 
 #include <common.h>
+#include <PH7/ph7.h>
 
 enum ClientStatus {
     WaitingForHello,
@@ -27,7 +28,7 @@ public:
 
     QString getPerms(QString path, qint32 uid);
     void ReadyToRead();
-    void processHttpRequest();
+    void processHttpRequest(char firstChar);
 
     QSqlDatabase configDB;
 
@@ -44,6 +45,11 @@ public:
     QString shareName;
     QString defaultPerms;
     QString localPath;
+
+    QByteArray httpResponse;
+    QHash<QString, QString> responseHeaders;
+    quint16 httpResultCode = 200;
+    QHash<quint16, QString> knownResultCodes;
 
 private:
     int socketDescriptor;

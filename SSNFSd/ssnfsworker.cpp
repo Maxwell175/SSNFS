@@ -12,6 +12,7 @@
 #include <iostream>
 #include <QStorageInfo>
 #include <QElapsedTimer>
+#include <QMimeDatabase>
 
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
@@ -21,7 +22,21 @@
 
 SSNFSWorker::SSNFSWorker(int socketDescriptor, QObject *parent)
     : QThread(parent), socketDescriptor(socketDescriptor)
-{ }
+{
+    knownResultCodes.insert(200	, "OK");
+    knownResultCodes.insert(202	, "Accepted");
+    knownResultCodes.insert(400	, "Bad Request");
+    knownResultCodes.insert(403	, "Forbidden");
+    knownResultCodes.insert(404	, "Not Found");
+    knownResultCodes.insert(405	, "Method Not Allowed");
+    knownResultCodes.insert(410	, "Resource Gone");
+    knownResultCodes.insert(413	, "Request Entity Too Large");
+    knownResultCodes.insert(415	, "Unsupported Media Type");
+    knownResultCodes.insert(500	, "Internal Server Error");
+    knownResultCodes.insert(502	, "Bad Gateway");
+    knownResultCodes.insert(503	, "Service Unavailable");
+    knownResultCodes.insert(504	, "Gateway Timeout");
+}
 
 void SSNFSWorker::run()
 {
@@ -61,10 +76,17 @@ void SSNFSWorker::run()
     qInfo() << socket->sslErrors();
     socket->flush();
 
-    while (socket->isOpen()) {
+    while (socket->isOpen() && socket->isEncrypted()) {
+        //socket->waitForReadyRead(-1);
         ReadyToRead();
         socket->flush();
+        if (socket->bytesToWrite() > 0) {
+            socket->waitForBytesWritten(-1);
+        }
     }
+
+    //deleteLater();
+    this->quit();
 }
 
 QString SSNFSWorker::getPerms(QString path, qint32 uid) {
@@ -109,19 +131,23 @@ void SSNFSWorker::ReadyToRead()
     {
         working = true;
         Common::ResultCode clientResult = Common::getResultFromBytes(Common::readExactBytes(socket, 1));
-        if (clientResult == Common::HTTP_GET) {
-            processHttpRequest();
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+        if (clientResult == Common::HTTP_GET || clientResult == Common::HTTP_POST) {
+            processHttpRequest((uint8_t)clientResult);
+            socket->flush();
+            if (socket->bytesToWrite() > 0) {
+                socket->waitForBytesWritten(-1);
+            }
+            socket->close();
             return;
         } else if (clientResult == Common::Hello) {
             if (socket->peerCertificate().isNull()) {
                 Log::warn(Log::Categories["Authentication"], "Client from IP {0} didn't provide a client certificate.", socket->peerAddress().toString().toUtf8().data());
-                QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+                socket->close();
                 return;
             }
         } else {
             if (socket->isOpen()) {
-                QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+                socket->close();
             }
             Log::warn(Log::Categories["Authentication"], "Client from IP {0} sent an invalid Hello code.", socket->peerAddress().toString().toUtf8().data());
             return;
@@ -131,7 +157,7 @@ void SSNFSWorker::ReadyToRead()
 
         if (clientHello.isNull()) {
             if (socket->isOpen()) {
-                QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+                socket->close();
             }
             Log::warn(Log::Categories["Authentication"], "Client from IP {0} sent an invalid Hello message.", socket->peerAddress().toString().toUtf8().data());
             return;
@@ -152,7 +178,7 @@ void SSNFSWorker::ReadyToRead()
         if (getUserKey.exec() == false) {
             qInfo() << getUserKey.executedQuery();
             Log::error(Log::Categories["Authentication"], "Unable to get the user cert from the DB: {0}", getUserKey.lastError().text().toUtf8().data());
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+            socket->close();
             return;
         }
         if (getUserKey.next() == false) {
@@ -162,7 +188,7 @@ void SSNFSWorker::ReadyToRead()
             QByteArray errorMsg = "Invalid authentication. Either you provided a bad certificate or your system info has changed. You may need to register your certificate.";
             socket->write(Common::getBytes((qint32)errorMsg.length()));
             socket->write(errorMsg);
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+            socket->close();
             return;
         }
         clientKey = getUserKey.value(0).toLongLong();
@@ -173,7 +199,7 @@ void SSNFSWorker::ReadyToRead()
 
         if (clientSysInfo.isNull()) {
             if (socket->isOpen()) {
-                QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+                socket->close();
             }
             Log::warn(Log::Categories["Authentication"], "Client from IP {0} sent an invalid SysInfo message.", socket->peerAddress().toString().toUtf8().data());
             return;
@@ -187,7 +213,7 @@ void SSNFSWorker::ReadyToRead()
             QByteArray errorMsg = "Invalid authentication. Either you provided a bad certificate or your system info has changed. You may need to register your certificate.";
             socket->write(Common::getBytes((qint32)errorMsg.length()));
             socket->write(errorMsg);
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+            socket->close();
             return;
         }
 
@@ -205,7 +231,7 @@ void SSNFSWorker::ReadyToRead()
         Common::ResultCode clientResult = Common::getResultFromBytes(Common::readExactBytes(socket, 1));
         if (clientResult != Common::Share) {
             if (socket->isOpen()) {
-                QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+                socket->close();
             }
             Log::warn(Log::Categories["Authentication"], "Client from IP {0} sent an invalid Share code.", socket->peerAddress().toString().toUtf8().data());
             return;
@@ -215,7 +241,7 @@ void SSNFSWorker::ReadyToRead()
 
         if (clientShare.isNull()) {
             if (socket->isOpen()) {
-                QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+                socket->close();
             }
             Log::warn(Log::Categories["Authentication"], "Client from IP {0} sent an invalid Share.", socket->peerAddress().toString().toUtf8().data());
             return;
@@ -232,7 +258,7 @@ void SSNFSWorker::ReadyToRead()
 
         if (getShare.exec() == false) {
             Log::error(Log::Categories["Authentication"], "Unable to get the share from the DB: {0}", getShare.lastError().text().toUtf8().data());
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+            socket->close();
             return;
         }
         if (getShare.next() == false) {
@@ -242,7 +268,7 @@ void SSNFSWorker::ReadyToRead()
             QByteArray errorMsg = "Invalid Share specified. Either it is unavailable to you or it does not exist.";
             socket->write(Common::getBytes((qint32)errorMsg.length()));
             socket->write(errorMsg);
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+            socket->close();
             return;
         }
 
@@ -264,7 +290,7 @@ void SSNFSWorker::ReadyToRead()
 
         if (currOperation == Common::InvalidOperation) {
             qDebug() << "Error! Invalid operation from client.";
-            QMetaObject::invokeMethod(socket, "close", Qt::QueuedConnection);
+            socket->close();
             deleteLater();
             return;
         }
@@ -545,7 +571,8 @@ void SSNFSWorker::ReadyToRead()
 
             int res;
 
-            void *readBuf = malloc(readSize);
+            QByteArray readBuf;
+            readBuf.fill('\x00', readSize);
             int actuallyRead = -1;
 
             // Find the corresponding actual File Descriptor
@@ -574,7 +601,7 @@ void SSNFSWorker::ReadyToRead()
                     res = -1;
                 } else {
                     if (finalPath == actualFdFilePath.data()) {
-                        actuallyRead = pread(realFd, readBuf, readSize, readOffset);
+                        actuallyRead = pread(realFd, readBuf.data(), readSize, readOffset);
                         res = actuallyRead;
                     } else {
                         res = -EBADF;
@@ -584,10 +611,10 @@ void SSNFSWorker::ReadyToRead()
 
             socket->write(Common::getBytes(res));
 
-            if (res > 0)
-                socket->write((char*)(readBuf), actuallyRead);
-
-            delete readBuf;
+            if (res > 0) {
+                readBuf.resize(actuallyRead);
+                socket->write(readBuf);
+            }
 
             status = WaitingForOperation;
 
@@ -1205,36 +1232,34 @@ void SSNFSWorker::ReadyToRead()
             QTime timer;
             timer.start();
 
-            socket->waitForReadyRead(-1);
-
-            qint32 uid = Common::getInt32FromBytes(Common::readExactBytes(socket, 4, true));
+            qint32 uid = Common::getInt32FromBytes(Common::readExactBytes(socket, 4, false));
             (void) uid;
 
-            quint32 numOfRequests = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4, true));
+            quint32 numOfRequests = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4, false));
 
             qint32 result = 0;
 
             for (quint32 i = 0; i < numOfRequests; i++) {
 
-                quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2, true));
+                quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2, false));
 
-                QByteArray targetPath = Common::readExactBytes(socket, pathLength, true);
+                QByteArray targetPath = Common::readExactBytes(socket, pathLength, false);
 
                 QString finalPath(localPath);
                 finalPath.append(targetPath);
 
                 // Get the internal File Descriptor.
-                int fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4, true));
+                int fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4, false));
 
-                qint64 Size = Common::getInt64FromBytes(Common::readExactBytes(socket, 8, true));
+                qint64 Size = Common::getInt64FromBytes(Common::readExactBytes(socket, 8, false));
 
-                qint64 Offset = Common::getInt64FromBytes(Common::readExactBytes(socket, 8, true));
+                qint64 Offset = Common::getInt64FromBytes(Common::readExactBytes(socket, 8, false));
 
                 qDebug() << "Got Metadata:" << timer.elapsed();
 
                 QByteArray dataToWrite;
 
-                dataToWrite.append(Common::readExactBytes(socket, Size, true));
+                dataToWrite.append(Common::readExactBytes(socket, Size, false));
 
                 qDebug() << "Got Data:" << timer.elapsed();
 
@@ -1398,31 +1423,259 @@ void SSNFSWorker::ReadyToRead()
     }
 }
 
-void SSNFSWorker::processHttpRequest()
+static int PH7Consumer(const void *pOutput, unsigned int nOutputLen, void *pUserData /* Unused */) {
+    ((SSNFSWorker*)pUserData)->httpResponse.append((const char*)pOutput, nOutputLen);
+    return PH7_OK;
+}
+static int PH7SetHeader(ph7_context *pCtx,int argc,ph7_value **argv) {
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+    if (argc >= 1 && ph7_value_is_string(argv[0])) {
+        int headerLen;
+        const char *headerStr = ph7_value_to_string(argv[0], &headerLen);
+        QVector<QString> headerParts;
+        QString header(QByteArray(headerStr, headerLen));
+        int HeaderNameLen = header.indexOf(": ");
+        if (HeaderNameLen == -1) {
+            ph7_context_throw_error(pCtx, PH7_CTX_WARNING, "The specified header does not contain \": \". Header key/value pairs must be separated by a \": \".");
+            ph7_result_bool(pCtx, 0);
+            return PH7_OK;
+        }
+        if (argc >= 2 && ph7_value_is_bool(argv[1]) && ph7_value_to_bool(argv[1])) {
+            worker->responseHeaders.remove(headerParts[0]);
+        }
+
+        worker->responseHeaders.insert(header.mid(0, HeaderNameLen), header.mid(HeaderNameLen + 2));
+    }
+
+    ph7_result_bool(pCtx, 1);
+    return PH7_OK;
+}
+static int PH7ResponseCode(ph7_context *pCtx,int argc,ph7_value **argv) {
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+    ph7_result_int(pCtx, worker->httpResultCode);
+    if (argc >= 1 && ph7_value_is_int(argv[0])) {
+        int newCode = ph7_value_to_int(argv[0]);
+        if (worker->knownResultCodes.keys().contains(newCode)) {
+            worker->httpResultCode = newCode;
+        } else {
+            ph7_context_throw_error(pCtx, PH7_CTX_WARNING, "Invalid or unsupported HTTP return code specified.");
+        }
+    }
+    return PH7_OK;
+}
+
+// TODO: Read this from file?
+#define HTTP_500_RESPONSE "HTTP/1.1 500 Internal Server Error\r\n\r\n" \
+                          "<html><body>\n" \
+                          "<h3>An error occured while processing your request.</h3>\n" \
+                          "This error has been logged and will be investigated shortly.\n" \
+                          "</body></html>"
+void SSNFSWorker::processHttpRequest(char firstChar)
 {
+    QByteArray Request;
+    Request.append(firstChar);
+
     while (socket->canReadLine() == false) {
         socket->waitForReadyRead(-1);
     }
     QString RequestLine = socket->readLine();
+    Request.append(RequestLine);
     QString RequestPath = RequestLine.split(" ")[1];
+
+    QString FinalPath = ServerSettings::get("WebPanelPath");
+    FinalPath.append(Common::resolveRelative(RequestPath));
+
+    QFileInfo FileFI(FinalPath);
+    if (!FileFI.exists()) {
+        socket->write("HTTP/1.1 404 Not Found\r\n");
+        socket->write("Content-Type: text/html\r\n");
+        socket->write("Connection: close\r\n\r\n");
+        socket->write("<html><body><h3>The file or directory you requested does not exist.</h3></body></html>");
+        return;
+    }
+    if (FileFI.isDir()) {
+        if (!FinalPath.endsWith('/'))
+            FinalPath.append('/');
+        FinalPath.append("index.php");
+    }
+    FileFI.setFile(FinalPath);
+    if (!FileFI.exists()) {
+        socket->write("HTTP/1.1 404 Not Found\r\n");
+        socket->write("Content-Type: text/html\r\n");
+        socket->write("Connection: close\r\n\r\n");
+        socket->write("<html><body><h3>The file or directory you requested does not exist.</h3></body></html>");
+        return;
+    }
+
+    if (!FileFI.isReadable()) {
+        socket->write("HTTP/1.1 403 Forbidden\r\n");
+        socket->write("Content-Type: text/html\r\n");
+        socket->write("Connection: close\r\n\r\n");
+        socket->write("<html><body><h3>The file or directory you requested cannot be opened.</h3></body></html>");
+        return;
+    }
+
     QMap<QString, QString> Headers;
     while (true) {
+        if (!socket->isOpen() || !socket->isEncrypted()) {
+            return;
+        }
         while (socket->canReadLine() == false) {
-            socket->waitForReadyRead(-1);
+            if (!socket->waitForReadyRead(3000))
+                continue;
         }
         QString HeaderLine = socket->readLine();
+        Request.append(HeaderLine);
         HeaderLine = HeaderLine.trimmed();
-        if (HeaderLine.isEmpty())
+        if (HeaderLine.isEmpty()) {
             break;
+        }
         int HeaderNameLen = HeaderLine.indexOf(": ");
         Headers.insert(HeaderLine.mid(0, HeaderNameLen), HeaderLine.mid(HeaderNameLen + 2));
     }
-    socket->write("HTTP/1.1 200 OK\r\n");
-    socket->write("Content-Type: text/html\r\n");
-    // Let the browser know we plan to close this conenction.
-    socket->write("Connection: close\r\n\r\n");
-    socket->write(tr("<html><body><h1>Hello World</h1><h3>You requested: %1</h3><h4>Headers:</h4><pre>").arg(RequestPath).toUtf8());
-    QDebug(socket) << Headers;
-    socket->write("</pre></body></html>");
+
+    if (Headers.keys().contains("Content-Length")) {
+        bool lengthOK;
+        uint reqLength = Headers["Content-Length"].toUInt(&lengthOK);
+        if (lengthOK) {
+            while (reqLength > 0) {
+                if (socket->bytesAvailable() == 0) {
+                    if (!socket->waitForReadyRead(3000))
+                        continue;
+                }
+                QByteArray currBatch = socket->readAll();
+                reqLength -= currBatch.length();
+                Request.append(currBatch);
+            }
+        }
+    }
+
+    if (FinalPath.endsWith(".php", Qt::CaseInsensitive)) {
+        ph7 *pEngine; /* PH7 engine */
+        ph7_vm *pVm; /* Compiled PHP program */
+        int rc;
+        /* Allocate a new PH7 engine instance */
+        rc = ph7_init(&pEngine);
+        if( rc != PH7_OK ){
+            /*
+            * If the supplied memory subsystem is so sick that we are unable
+            * to allocate a tiny chunk of memory, there is not much we can do here.
+            */
+            Log::error(Log::Categories["Web Server"], "Error while allocating a new PH7 engine instance");
+            socket->write(HTTP_500_RESPONSE);
+            return;
+        }
+        /* Compile the PHP test program defined above */
+        rc = ph7_compile_file(
+                    pEngine,
+                    ToChr(FinalPath),
+                    &pVm,
+                    0);
+        if( rc != PH7_OK ){
+            if( rc == PH7_COMPILE_ERR ){
+                const char *zErrLog;
+                int nLen;
+                /* Extract error log */
+                ph7_config(pEngine,
+                           PH7_CONFIG_ERR_LOG,
+                           &zErrLog,
+                           &nLen
+                           );
+                if( nLen > 0 ){
+                    /* zErrLog is null terminated */
+                    Log::error(Log::Categories["Web Server"], zErrLog);
+                    socket->write(HTTP_500_RESPONSE);
+                    return;
+                }
+            }
+            Log::error(Log::Categories["Web Server"], "PH7: Unknown compile error.");
+            socket->write(HTTP_500_RESPONSE);
+            return;
+        }
+        /*
+         * Now we have our script compiled, it's time to configure our VM.
+         * We will install the output consumer callback defined above
+         * so that we can consume and redirect the VM output to STDOUT.
+         */
+        rc = ph7_vm_config(pVm,
+            PH7_VM_CONFIG_OUTPUT,
+            PH7Consumer,
+            this /* Callback private data */
+            );
+        if( rc != PH7_OK ){
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while installing the VM output consumer callback");
+            return;
+        }
+        rc = ph7_vm_config(pVm,
+            PH7_VM_CONFIG_HTTP_REQUEST,
+            Request.data(),
+            Request.length()
+            );
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while transferring the HTTP request to PH7.");
+            return;
+        }
+
+        rc = ph7_create_function(
+                    pVm,
+                    "header",
+                    PH7SetHeader,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up header() function in PH7.");
+            return;
+        }
+        rc = ph7_create_function(
+                    pVm,
+                    "http_response_code",
+                    PH7ResponseCode,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up http_response_code() function in PH7.");
+            return;
+        }
+
+        /*
+        * And finally, execute our program.
+        */
+        if (ph7_vm_exec(pVm,0) != PH7_OK) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error occurred while running PH7 script for script '{0}'.");
+            return;
+        }
+        /* All done, cleanup the mess left behind.
+        */
+        ph7_vm_release(pVm);
+        ph7_release(pEngine);
+
+        responseHeaders["Connection"] = "close";
+        socket->write(tr("HTTP/1.1 %1 %2\r\n").arg(httpResultCode).arg(knownResultCodes.value(httpResultCode)).toUtf8());
+        for (QHash<QString, QString>::iterator i = responseHeaders.begin(); i != responseHeaders.end(); ++i) {
+            socket->write(i.key().toUtf8());
+            socket->write(": ");
+            socket->write(i.value().toUtf8());
+            socket->write("\r\n");
+        }
+        socket->write("\r\n");
+        socket->write(httpResponse);
+    } else {
+        socket->write("HTTP/1.1 200 OK\r\n");
+        QMimeDatabase mimeDB;
+        socket->write(ToChr(tr("Content-Type: %1\r\n").arg(mimeDB.mimeTypeForFile(FinalPath).name())));
+        // Let the browser know we plan to close this conenction.
+        socket->write("Connection: close\r\n\r\n");
+        QFile requestedFile(FinalPath);
+        requestedFile.open(QFile::ReadOnly);
+        int blocksize = 4096;
+        while (!requestedFile.atEnd()) {
+            socket->write(requestedFile.readAll());
+        }
+        requestedFile.close();
+        socket->waitForBytesWritten(-1);
+    }
 }
 

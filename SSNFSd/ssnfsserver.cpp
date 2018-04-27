@@ -40,8 +40,6 @@
 #define STR(tok) STR_EXPAND(tok)
 #define HELLO_STR "SSNFS server version " STR(_SERVER_VERSION)
 
-#define ToChr(x) x.toUtf8().data()
-
 SSNFSServer::SSNFSServer(QObject *parent)
     : QTcpServer(parent) // This is the directory that we will serve up.
 {

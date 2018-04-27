@@ -1295,6 +1295,8 @@ qint32 FuseClient::writeBuffer()
 
     for (int i = 0; i < clientWriteBuffer.length(); i++) {
 
+        socket->flush();
+
         socket->write(Common::getBytes((quint16)clientWriteBuffer[i].path.length()));
         socket->write(clientWriteBuffer[i].path.toUtf8());
 
@@ -1306,7 +1308,6 @@ qint32 FuseClient::writeBuffer()
 
         socket->write(clientWriteBuffer[i].data);
     }
-    qDebug() << socket->bytesToWrite();
     socket->waitForBytesWritten(-1);
     socket->waitForReadyRead(-1);
 

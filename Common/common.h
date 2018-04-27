@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <QStringList>
 
+#define ToChr(x) x.toUtf8().data()
+
 namespace Common {
     const quint8 MAX_RESULTCODE = 3;
     enum ResultCode : quint8 {
@@ -21,6 +23,7 @@ namespace Common {
         Share = 3,
 
         HTTP_GET = 'G',
+        HTTP_POST = 'P',
 
         InvalidResult = UINT8_MAX
     };
@@ -170,7 +173,7 @@ namespace Common {
         quint8 result = 0;
         result |= ((quint8)input[0]);
 
-        if (result > MAX_RESULTCODE && result != 'G')
+        if (result > MAX_RESULTCODE && result != HTTP_GET && result != HTTP_POST)
             return ResultCode::InvalidResult;
         else
             return (ResultCode) result;
@@ -183,30 +186,40 @@ namespace Common {
             return (Operation) result;
     }
 
-    /*inline QByteArray readExactBytes(QByteArray &input, std::atomic<bool> &locker, int length, int timeout = 1, QTime timer = QTime::currentTime()) {
-        QByteArray result;
-        while (result.length() < length) {
-            //while (locker) {}
-            locker = true;
-            if (input.isEmpty()) {
-                locker = false;
-                usleep(1000);
-            } else {
-                QByteArray currData = input.left(length - result.length());
-                result.append(currData);
-                input.remove(0, currData.length());
-                locker = false;
+    inline QString resolveRelative(QString path) {
+        QList<QString> pathParts = path.split('/');
+        for (int i = 0; i < pathParts.length(); i++) {
+            if (pathParts[i] == ".") {
+                pathParts.removeAt(i);
+                i--;
+            } else if (pathParts[i] == "..") {
+                pathParts.removeAt(i);
+                if (i > 1)
+                    pathParts.removeAt(i - 1);
+                i--;
+                i--;
+            } else if (pathParts[i] == "") {
+                pathParts.removeAt(i);
+                i--;
             }
-        }
-        return result;
-    }*/
 
-    inline QByteArray readExactBytes(QAbstractSocket *input, int length, bool write = false, int timeout = 1, QTime timer = QTime::currentTime()) {
+            if (i < -1)
+                i = -1;
+        }
+        QString result = QStringList(pathParts).join('/');
+        if (!result.startsWith('/'))
+            result.prepend('/');
+        return result.trimmed();
+    }
+
+    inline QByteArray readExactBytes(QAbstractSocket *input, int length, bool write = false, int timeout = 5000, QTime timer = QTime::currentTime()) {
+        int iterations = 0;
         QTime timer1;
         if (write)
             timer1.start();
         QByteArray result;
         while (result.length() < length) {
+            iterations++;
             if (write)
                 qInfo() << "Mark1:" << timer1.elapsed();
             if (input->bytesAvailable() == 0) {
@@ -215,6 +228,9 @@ namespace Common {
             if (write)
                 qInfo() << "Mark1.5:" << timer1.elapsed();
             result.append(input->read(length - result.length()));
+            if (iterations > timeout) {
+                return QByteArray();
+            }
         }
         if (write)
             qInfo() << "Mark2:" << timer.elapsed();

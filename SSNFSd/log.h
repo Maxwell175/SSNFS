@@ -14,6 +14,8 @@
 #include <spdlog/fmt/ostr.h>
 #include <stdexcept>
 
+#include <common.h>
+
 QSqlDatabase getConfDB();
 
 class LogOutput;
@@ -97,6 +99,7 @@ public:
         Categories.insert("Authentication", LogCategory("Authentication", "Messages generated during client authentication."));
         Categories.insert("File System", LogCategory("File System", "Various technical messages generated while processing requests."));
         Categories.insert("Server", LogCategory("Server", "Messages related to the server status including configuration changes."));
+        Categories.insert("Web Server", LogCategory("Web Server", "Messages related to the web server."));
 
         QSqlDatabase configDB = getConfDB();
         if (!configDB.isValid()) {
@@ -162,8 +165,13 @@ public:
             init();
         }
 
+        QString msg = category.name;
+        msg.prepend('[');
+        msg.append("] ");
+        msg.append(fmt);
+
         for (int i = 0; i < category.errorOutputs.length(); i++) {
-            category.errorOutputs[i].logger->error(fmt, args...);
+            category.errorOutputs[i].logger->error(ToChr(msg), args...);
         }
     }
     template <typename... Args> static inline void warn(const LogCategory& category, const char* fmt, const Args&... args) {
@@ -172,8 +180,13 @@ public:
             init();
         }
 
+        QString msg = category.name;
+        msg.prepend('[');
+        msg.append("] ");
+        msg.append(fmt);
+
         for (int i = 0; i < category.warningOutputs.length(); i++) {
-            category.warningOutputs[i].logger->warn(fmt, args...);
+            category.warningOutputs[i].logger->warn(ToChr(msg), args...);
         }
     }
     template <typename... Args> static inline void info(const LogCategory& category, const char* fmt, const Args&... args) {
@@ -182,8 +195,13 @@ public:
             init();
         }
 
+        QString msg = category.name;
+        msg.prepend('[');
+        msg.append("] ");
+        msg.append(fmt);
+
         for (int i = 0; i < category.infoOutputs.length(); i++) {
-            category.infoOutputs[i].logger->info(fmt, args...);
+            category.infoOutputs[i].logger->info(ToChr(msg), args...);
         }
     }
 };
