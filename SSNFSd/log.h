@@ -98,7 +98,7 @@ public:
         Categories.insert("Connection", LogCategory("Connection", "Messages related to client connections."));
         Categories.insert("Authentication", LogCategory("Authentication", "Messages generated during client authentication."));
         Categories.insert("File System", LogCategory("File System", "Various technical messages generated while processing requests."));
-        Categories.insert("Server", LogCategory("Server", "Messages related to the server status including configuration changes."));
+        Categories.insert("Core", LogCategory("Core", "Messages related to the server status including configuration changes."));
         Categories.insert("Web Server", LogCategory("Web Server", "Messages related to the web server."));
 
         QSqlDatabase configDB = getConfDB();

@@ -45,20 +45,20 @@ SSNFSServer::SSNFSServer(QObject *parent)
 {
     if (ServerSettings::get("PrivateKeySource") == "file") {
         QString newFile = ServerSettings::get("PrivateKeyFilePath");
-        Log::info(Log::Categories["Server"], "Loading private key from file: {0}", ToChr(newFile));
+        Log::info(Log::Categories["Core"], "Loading private key from file: {0}", ToChr(newFile));
         QFile pkeyFile(newFile);
         if (pkeyFile.exists() == false) {
-            Log::error(Log::Categories["Server"], "Private Key File does not exist.", ToChr(newFile));
+            Log::error(Log::Categories["Core"], "Private Key File does not exist.", ToChr(newFile));
             exit(1);
         } else {
             if (pkeyFile.open(QFile::ReadOnly) == false) {
-                Log::error(Log::Categories["Server"], "Could not open the Private Key file: {0}", pkeyFile.errorString().toUtf8().data());
+                Log::error(Log::Categories["Core"], "Could not open the Private Key file: {0}", pkeyFile.errorString().toUtf8().data());
                 exit(1);
             } else {
                 QSslKey pkey(pkeyFile.readAll(), QSsl::Rsa);
                 pkeyFile.close();
                 if (pkey.isNull()) {
-                    Log::error(Log::Categories["Server"], "The Private Key file specified is not a valid PEM-encoded RSA private key.");
+                    Log::error(Log::Categories["Core"], "The Private Key file specified is not a valid PEM-encoded RSA private key.");
                     exit(1);
                 } else {
                     privateKey = pkey;
@@ -68,20 +68,20 @@ SSNFSServer::SSNFSServer(QObject *parent)
     }
 
     QString newCertFile = ServerSettings::get("CertificatePath");
-    Log::info(Log::Categories["Server"], "Loading certificate from file: {0}", ToChr(newCertFile));
+    Log::info(Log::Categories["Core"], "Loading certificate from file: {0}", ToChr(newCertFile));
     QFile certFile(newCertFile);
     if (certFile.exists() == false) {
-        Log::error(Log::Categories["Server"], "Certificate File does not exist.", ToChr(newCertFile));
+        Log::error(Log::Categories["Core"], "Certificate File does not exist.", ToChr(newCertFile));
         exit(1);
     } else {
         if (certFile.open(QFile::ReadOnly) == false) {
-            Log::error(Log::Categories["Server"], "Could not open the Certificate file: {0}", certFile.errorString().toUtf8().data());
+            Log::error(Log::Categories["Core"], "Could not open the Certificate file: {0}", certFile.errorString().toUtf8().data());
             exit(1);
         } else {
             QSslCertificate cert(certFile.readAll());
             certFile.close();
             if (cert.isNull()) {
-                Log::error(Log::Categories["Server"], "The Certificate file you specified is not a valid PEM-encoded certificate.");
+                Log::error(Log::Categories["Core"], "The Certificate file you specified is not a valid PEM-encoded certificate.");
                 exit(1);
             } else {
                 certificate = cert;
@@ -91,7 +91,7 @@ SSNFSServer::SSNFSServer(QObject *parent)
 
     configDB = getConfDB();
     if (!configDB.isValid()) {
-        Log::error(Log::Categories["Server"], "Cannot get the configuration DB while starting server. Exiting.");
+        Log::error(Log::Categories["Core"], "Cannot get the configuration DB while starting server. Exiting.");
         exit(1);
         return;
     }

@@ -2,8 +2,12 @@
 #
 # Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
 #
-# Copyright 2017 Maxwell Dreytser
+# Copyright 2018 Maxwell Dreytser
 #
+
+!contains(DEFINES, "ISGLOBAL=1"):{
+    error(SSNFS-client.pro cannot be used independently. Please use the main SSNFS.pro file.)
+}
 
 QT += core
 QT -= gui
@@ -15,6 +19,9 @@ CONFIG += c++11
 TARGET = SSNFS-client
 CONFIG += console
 CONFIG -= app_bundle
+
+target.path = $$PREFIX/bin
+INSTALLS += target
 
 LIBS += -lfuse
 

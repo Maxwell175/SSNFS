@@ -1670,7 +1670,6 @@ void SSNFSWorker::processHttpRequest(char firstChar)
         socket->write("Connection: close\r\n\r\n");
         QFile requestedFile(FinalPath);
         requestedFile.open(QFile::ReadOnly);
-        int blocksize = 4096;
         while (!requestedFile.atEnd()) {
             socket->write(requestedFile.readAll());
         }

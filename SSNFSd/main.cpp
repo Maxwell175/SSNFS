@@ -21,13 +21,7 @@ QHash<QString, SettingInfo> ServerSettings::m_settings;
 
 int main(int argc, char *argv[])
 {
-    qInfo() << "Starting SSNFSd" << _SERVER_VERSION << "at" << QDateTime::currentDateTime().toString();
-
     QCoreApplication app(argc, argv);
-
-    //qRegisterMetaType<SSNFSClient*>("SSNFSClient*");
-
-    Log::init();
 
     ServerSettings::reloadSettings();
 
@@ -40,15 +34,13 @@ int main(int argc, char *argv[])
         return 0;
     }
     bool willExit = false;
-    QStringList::const_iterator iter = app.arguments().constBegin();
-    const QStringList::const_iterator end = app.arguments().constEnd();
-    for (; iter != end; ++iter) {
-        if ((*iter).startsWith("--set-pkey-file", Qt::CaseInsensitive)) {
+    foreach (QString arg, app.arguments()) {
+        if (arg.startsWith("--set-pkey-file", Qt::CaseInsensitive)) {
             int equPos;
-            if ((equPos = (*iter).indexOf('=')) == -1) {
-                qInfo() << "Invalid parameter:" << (*iter);
+            if ((equPos = arg.indexOf('=')) == -1) {
+                qInfo() << "Invalid parameter:" << arg;
             }
-            QString newFile = (*iter).mid(equPos + 1);
+            QString newFile = arg.mid(equPos + 1);
             QFile pkeyFile(newFile);
             if (pkeyFile.exists() == false) {
                 qInfo() << "The file you specified for --set-pkey-file does not exist.";
@@ -69,12 +61,12 @@ int main(int argc, char *argv[])
             }
             willExit = true;
         }
-        if ((*iter).startsWith("--set-cert-file", Qt::CaseInsensitive)) {
+        if (arg.startsWith("--set-cert-file", Qt::CaseInsensitive)) {
             int equPos;
-            if ((equPos = (*iter).indexOf('=')) == -1) {
-                qInfo() << "Invalid parameter:" << (*iter);
+            if ((equPos = arg.indexOf('=')) == -1) {
+                qInfo() << "Invalid parameter:" << arg;
             }
-            QString newFile = (*iter).mid(equPos + 1);
+            QString newFile = arg.mid(equPos + 1);
             QFile certFile(newFile);
             if (certFile.exists() == false) {
                 qInfo() << "The file you specified for --set-cert-file does not exist.";
@@ -99,12 +91,17 @@ int main(int argc, char *argv[])
     if (willExit)
         return 0;
 
+
+    qInfo() << "Starting SSNFSd" << _SERVER_VERSION << "at" << QDateTime::currentDateTime().toString();
+
+    Log::init();
+
     SSNFSServer server;
 
     bool settingOk = false;
     int dbPort = ServerSettings::get("ListenPort").toInt(&settingOk);
     if (!settingOk && dbPort > 0 && dbPort < UINT16_MAX) {
-        Log::error(Log::Categories["Server"], "Listen port in config DB is not a valid port number.");
+        Log::error(Log::Categories["Core"], "Listen port in config DB is not a valid port number.");
         exit(1);
     }
 
@@ -123,7 +120,7 @@ QSqlDatabase getConfDB() {
     if (!configDB.isOpen()) {
         if (configDB.open() == false) {
             if (Log::isInit) {
-                Log::error(Log::Categories["Server"], "Cannot open config database: {0}", configDB.lastError().text().toUtf8().data());
+                Log::error(Log::Categories["Core"], "Cannot open config database: {0}", configDB.lastError().text().toUtf8().data());
             } else {
                 qCritical() << "Error opening config DB:" << configDB.lastError().text();
             }
@@ -132,7 +129,7 @@ QSqlDatabase getConfDB() {
         QSqlQuery enableForeignKeys("PRAGMA foreign_keys = \"1\"", configDB);
         if (enableForeignKeys.exec() == false) {
             if (Log::isInit) {
-                Log::error(Log::Categories["Server"], "Error while turning on foreign keys on config database: {0}", configDB.lastError().text().toUtf8().data());
+                Log::error(Log::Categories["Core"], "Error while turning on foreign keys on config database: {0}", configDB.lastError().text().toUtf8().data());
             } else {
                 qCritical() << "Error while turning on foreign keys on config DB:" << configDB.lastError().text();
             }
@@ -141,7 +138,7 @@ QSqlDatabase getConfDB() {
         QSqlQuery foreignKeyCheck("PRAGMA foreign_key_check");
         if (foreignKeyCheck.exec() == false) {
             if (Log::isInit) {
-                Log::error(Log::Categories["Server"], "Error while running foreign key checks on config database: {0}", configDB.lastError().text().toUtf8().data());
+                Log::error(Log::Categories["Core"], "Error while running foreign key checks on config database: {0}", configDB.lastError().text().toUtf8().data());
             } else {
                 qCritical() << "Error while running Foreign Key checks on config DB:" << configDB.lastError().text();
             }
@@ -150,7 +147,7 @@ QSqlDatabase getConfDB() {
         if (foreignKeyCheck.next()) {
             qInfo() << foreignKeyCheck.size();
             if (Log::isInit) {
-                Log::error(Log::Categories["Server"], "One or more Foreign Key violations have been detected in the config DB! Unable to load config.");
+                Log::error(Log::Categories["Core"], "One or more Foreign Key violations have been detected in the config DB! Unable to load config.");
             } else {
                 // A FK violation can only be made by user interaction with the DB. So, they should fix their errors.
                 qCritical() << "One or more Foreign Key violations have been detected in the config DB.";

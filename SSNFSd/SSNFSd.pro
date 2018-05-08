@@ -2,8 +2,12 @@
 #
 # Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
 #
-# Copyright 2017 Maxwell Dreytser
+# Copyright 2018 Maxwell Dreytser
 #
+
+!contains(DEFINES, "ISGLOBAL=1"):{
+    error(SSNFSd.pro cannot be used independently. Please use the main SSNFS.pro file.)
+}
 
 QT += core
 QT -= gui
@@ -16,35 +20,40 @@ TARGET = SSNFSd
 CONFIG += console
 CONFIG -= app_bundle
 
+target.path = $$PREFIX/bin
+INSTALLS += target
+
 TEMPLATE = app
 
-QMAKE_CFLAGS_WARN_ON -= -Wall
-QMAKE_CXXFLAGS_WARN_ON -= -Wall
-QMAKE_CFLAGS += -Wno-unused-variable
-QMAKE_CXXFLAGS += -Wno-unused-variable
-
 include(../Common/Common.pri)
+
+INCLUDEPATH += PH7
+DEPENDPATH += PH7
+
+LIBS += -LPH7 -lPH7
 
 SOURCES += \
     main.cpp \
     ssnfsserver.cpp \
     serversettings.cpp \
-    ssnfsworker.cpp \
-    PH7/ph7.c
+    ssnfsworker.cpp
 
 HEADERS += \
     ssnfsserver.h \
     log.h \
     serversettings.h \
-    ssnfsworker.h \
-    PH7/ph7.h
+    ssnfsworker.h
+
+webpanel.path = $$PREFIX/etc/webpanel
+webpanel.files = webpanel/*
+INSTALLS += webpanel
+
+configdb.path = $$PREFIX/etc
+configdb.files = config.db
+INSTALLS += configdb
 
 DEFINES += _SERVER_VERSION=0.1
-DEFINES += "_CONFIG_DIR=\"\\\"$$PWD\\\"\""
+DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc\\\"\""
 
 DEFINES += _FILE_OFFSET_BITS=64
 DEFINES += _XOPEN_SOURCE=700
-
-DEFINES += PH7_ENABLE_THREADS
-# Needed to build PH7:
-DEFINES += MAP_FILE=0x0001
