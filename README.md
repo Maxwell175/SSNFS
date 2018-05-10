@@ -20,6 +20,29 @@ This project's goal is to create a simple way to mount a directory located on a 
  * Read Write mode (Completed) 
  * Configuration (Completed)
  * Managment interface (In Progress)
+ 
+## Building
+
+By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
+If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
+
+Server:
+```
+mkdir build-server
+cd build-server
+qmake "CONFIG+=server" ..
+make
+sudo make install
+```
+
+Client:
+```
+mkdir build-client
+cd build-client
+qmake "CONFIG+=client" ..
+make
+sudo make install
+```
 
 ## Coding style
 This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
