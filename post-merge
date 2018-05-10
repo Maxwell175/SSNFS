@@ -1,0 +1,3 @@
+#!/bin/sh
+
+sqlite3 SSNFSd/config.db < SSNFSd/config.sql
