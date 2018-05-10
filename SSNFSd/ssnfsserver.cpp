@@ -7,9 +7,9 @@
  */
 
 #include "ssnfsserver.h"
-#include "log.h"
-#include "serversettings.h"
-#include "ssnfsworker.h"
+#include <log.h>
+#include <serversettings.h>
+#include <ssnfsworker.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>

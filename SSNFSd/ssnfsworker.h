@@ -4,9 +4,9 @@
 #include <QThread>
 #include <QSqlDatabase>
 #include <QSslSocket>
+#include <QUuid>
 
 #include <common.h>
-#include <PH7/ph7.h>
 
 enum ClientStatus {
     WaitingForHello,
@@ -21,6 +21,8 @@ class SSNFSWorker : public QThread
 public:
     SSNFSWorker(int socketDescriptor, QObject *parent);
     ~SSNFSWorker() {
+        configDB.close();
+        QSqlDatabase::removeDatabase(configDB.databaseName());
         socket->deleteLater();
     }
 
@@ -50,6 +52,7 @@ public:
     QHash<QString, QString> responseHeaders;
     quint16 httpResultCode = 200;
     QHash<quint16, QString> knownResultCodes;
+    qint64 webUserKey = -1;
 
 private:
     int socketDescriptor;

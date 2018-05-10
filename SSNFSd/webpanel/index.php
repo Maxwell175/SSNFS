@@ -1,16 +1,7 @@
-This is a test page
-More testing.
 <?php
-$_COOKIE['test'] = "ABCABC";
+if (check_auth_cookie($_COOKIE['SSNFS_auth']) == FALSE) {
+    header("Location: /login.php");
+    http_response_code(303);
+    exit();
+}
 ?>
-dasgasfdg
-sadfgasfgfad
-sgsdf
-gdsf
-g
-dsfg
-<?php echo $test?>
-t
-t
-t
-<?php http_response_code(202); ?>

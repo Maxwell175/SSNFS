@@ -36,7 +36,8 @@ SOURCES += \
     main.cpp \
     ssnfsserver.cpp \
     serversettings.cpp \
-    ssnfsworker.cpp
+    ssnfsworker.cpp \
+    ssnfswebworker.cpp
 
 HEADERS += \
     ssnfsserver.h \
