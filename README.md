@@ -20,6 +20,12 @@ This project's goal is to create a simple way to mount a directory located on a 
  * Read Write mode (Completed) 
  * Configuration (Completed)
  * Managment interface (In Progress)
+
+## Getting ready
+
+Before starting, please install the sqlite3 command line tool. (`apt install sqlite3`)
+After cloning the repository, execute `sh addHooks.sh` to add the required hooks.
+Finally, manually execute the post-merge hook the first time: `sh post-merge`
  
 ## Building
 
