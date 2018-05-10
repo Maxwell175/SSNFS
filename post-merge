@@ -1,3 +1,10 @@
 #!/bin/sh
 
+mv SSNFSd/config.db SSNFSd/config.db.old
 sqlite3 SSNFSd/config.db < SSNFSd/config.sql
+if [ $? -eq 0 ]; then
+    rm SSNFSd/config.db.old
+else
+    rm SSNFSd/config.db
+    mv SSNFSd/config.db.old SSNFSd/config.db
+fi
