@@ -101,7 +101,9 @@ int main(int argc, char *argv[])
             }
             QString inputPass = arg.mid(equPos + 1);
 
-            qInfo() << Common::GetPasswordHash(inputPass, manualSalt);
+            QByteArray shaPass = QCryptographicHash::hash(inputPass.toUtf8(), QCryptographicHash::Sha512);
+            qInfo() << Common::GetPasswordHash(shaPass.toHex().toLower(), manualSalt);
+            qInfo() << shaPass.toHex().toLower();
 
             willExit = true;
         }
