@@ -1,5 +1,7 @@
 SSNFSd/config.db
 
+*.db-journal
+
 # C++ objects and libs
 
 *.slo

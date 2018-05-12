@@ -58,3 +58,6 @@ DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc\\\"\""
 
 DEFINES += _FILE_OFFSET_BITS=64
 DEFINES += _XOPEN_SOURCE=700
+
+DISTFILES += \
+    webpanel/login.php

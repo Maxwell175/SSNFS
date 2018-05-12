@@ -1,3 +1,7 @@
 [submodule "Common/spdlog"]
 	path = Common/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "SSNFSd/webpanel/crypto-js"]
+	path = SSNFSd/webpanel/crypto-js
+	url = https://github.com/MDTech-us-MAN/crypto-js.git
+	branch = master

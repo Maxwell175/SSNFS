@@ -9,11 +9,11 @@ CREATE TABLE IF NOT EXISTS "Settings" (
 	PRIMARY KEY(`Setting_Key`)
 );
 INSERT INTO Settings VALUES('PrivateKeySource','file','Where is the private key?','2018-02-19 04:25:58','Default');
-INSERT INTO Settings VALUES('PrivateKeyFilePath','/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.key','If the private key is a file, this is the path to the file.','2018-02-19 04:25:58','Default');
-INSERT INTO Settings VALUES('CertificatePath','/home/maxwell/CLionProjects/SSNFS/SSNFSd/test.crt','Path to the server''s certificate.','2018-02-19 04:25:58','Default');
+INSERT INTO Settings VALUES('PrivateKeyFilePath','/home/maxwell/Coding/SSNFS/SSNFSd/test.key','If the private key is a file, this is the path to the file.','2018-02-19 04:25:58','Default');
+INSERT INTO Settings VALUES('CertificatePath','/home/maxwell/Coding/SSNFS/SSNFSd/test.crt','Path to the server''s certificate.','2018-02-19 04:25:58','Default');
 INSERT INTO Settings VALUES('ListenPort','2050','The port on which the server will listen for both client requests and Web Panel requests.','2018-03-05 07:18:50','Default');
 INSERT INTO Settings VALUES('NewFileMode','777','The mode used to store the files that clients create. Does not affect actual client privileges.','2018-04-06 03:33:34','Default');
-INSERT INTO Settings VALUES('WebPanelPath','/home/maxwell/CLionProjects/SSNFS/SSNFSd/webpanel','Path to the directory containing the web administration files. Before loading each file, it goes through a PHP parser.','2018-05-10 00:00:00','Default');
+INSERT INTO Settings VALUES('WebPanelPath','/home/maxwell/Coding/SSNFS/SSNFSd/webpanel','Path to the directory containing the web administration files. Before loading each file, it goes through a PHP parser.','2018-05-10 00:00:00','Default');
 CREATE TABLE IF NOT EXISTS "Shares" (
 	`Share_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
 	`Share_Name`	TEXT NOT NULL UNIQUE,
