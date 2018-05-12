@@ -1,11 +1,21 @@
 <?php
 if (check_auth_cookie($_COOKIE['SSNFS_auth']) == TRUE) {
+    header("Set-Cookie: SSNFS_auth=; Secure; expires=Thu, 01 Jan 1970 00:00:00 GMT");
     header("Location: /");
     http_response_code(303);
     exit();
 }
 
 if (isset($_POST['email'])) {
+    $newCookie = make_auth_cookie($_POST['email'], $_POST['passwordHash']);
+    if ($newCookie == "") {
+        header("Location: /login.php?invalid-cred=1");
+        http_response_code(303);
+    } else {
+        header("Set-Cookie: SSNFS_auth=".$newCookie."; Secure");
+        header("Location: /");
+        http_response_code(303);
+    }
     exit();
 }
 ?>
@@ -52,6 +62,9 @@ if (isset($_POST['email'])) {
                             <form action="login.php" method="post">
                                 <h2><b>SSNFS</b></h2>
                                 <h4>Login</h4>
+                                <?php if ($_GET['invalid-cred'] == '1'): ?>
+                                <h6 style="color: darkred">The specified email or password is incorrect.</h6>
+                                <?php endif ?>
                                 <div class="form-group input-group">
                                     <div class="input-group-prepend">
                                         <span class="input-group-text"> <i class="fa fa-envelope"></i> </span>

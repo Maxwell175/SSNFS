@@ -27,10 +27,10 @@ TEMPLATE = app
 
 include(../Common/Common.pri)
 
-INCLUDEPATH += PH7
-DEPENDPATH += PH7
+INCLUDEPATH += PH7 fastpbkdf2
+DEPENDPATH += PH7 fastpbkdf2
 
-LIBS += -LPH7 -lPH7
+LIBS += -LPH7 -lPH7 -Lfastpbkdf2 -lfastpbkdf2 -lcrypto -lssl
 
 SOURCES += \
     main.cpp \
@@ -58,6 +58,3 @@ DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc\\\"\""
 
 DEFINES += _FILE_OFFSET_BITS=64
 DEFINES += _XOPEN_SOURCE=700
-
-DISTFILES += \
-    webpanel/login.php

@@ -11,6 +11,9 @@
 #include <QThread>
 #include <unistd.h>
 #include <QStringList>
+#include <QRandomGenerator>
+
+#include <fastpbkdf2.h>
 
 #define ToChr(x) x.toUtf8().data()
 
@@ -293,6 +296,44 @@ namespace Common {
             SystemStr.truncate(SystemStr.length() - 1);
 
         return SystemStr;
+    }
+
+    inline QString GetRandomString(const int randomStringLength = 16)
+    {
+       const QString possibleCharacters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
+
+       QString randomString;
+       for(int i=0; i<randomStringLength; ++i)
+       {
+           int index = QRandomGenerator::system()->bounded(possibleCharacters.length());
+           QChar nextChar = possibleCharacters.at(index);
+           randomString.append(nextChar);
+       }
+       return randomString;
+    }
+
+    inline QString GetPasswordHash(QString password, QString salt = QString(), int iterations = 1024) {
+        if (salt.isNull() || salt.isEmpty())
+            salt = GetRandomString(32);
+
+        QByteArray passwordBytes = password.toUtf8();
+        QByteArray saltBytes = salt.toUtf8();
+
+        QByteArray pbkdf2Out;
+        pbkdf2Out.fill('\x00', 64);
+        fastpbkdf2_hmac_sha512((const uint8_t*)passwordBytes.constData(), passwordBytes.length(),
+                               (const uint8_t*)saltBytes.constData(), saltBytes.length(),
+                               1024,
+                               (uint8_t*)pbkdf2Out.data(), pbkdf2Out.length());
+
+        QString finalResult;
+        finalResult.append(pbkdf2Out.toBase64());
+        finalResult.append('$');
+        finalResult.append(saltBytes);
+        finalResult.append('$');
+        finalResult.append(QString::number(iterations));
+
+        return finalResult;
     }
 }
 

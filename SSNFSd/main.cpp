@@ -27,13 +27,17 @@ int main(int argc, char *argv[])
 
     if (app.arguments().contains("-h", Qt::CaseInsensitive) || app.arguments().contains("--help", Qt::CaseInsensitive)) {
         qInfo() << QFileInfo(app.applicationFilePath()).fileName() << "[OPTIONS]";
-        qInfo() << "    --help, -h              Show this help text.";
-        qInfo() << "    --set-pkey-file=<path>  Set server private key to the specified file.";
-        qInfo() << "    --set-cert-file=<path>  Set server certificate to the specified file.";
-        qInfo() << "Note: Will exit after setting the private key or certificate.";
+        qInfo() << "    --help, -h                  Show this help text.";
+        qInfo() << "    --set-pkey-file=<path>      Set server private key to the specified file.";
+        qInfo() << "    --set-cert-file=<path>      Set server certificate to the specified file.";
+        qInfo() << "    --hash-password-salt=<salt> When manually hasing a password (below) use this salt.";
+        qInfo() << "                            Must be specified before --hash-password.";
+        qInfo() << "    --hash-password=<password>  Return a hashed version of the specified password.";
+        qInfo() << "Note: Will exit after setting the private key or certificate, or manually generating a hashed password.";
         return 0;
     }
     bool willExit = false;
+    QString manualSalt;
     foreach (QString arg, app.arguments()) {
         if (arg.startsWith("--set-pkey-file", Qt::CaseInsensitive)) {
             int equPos;
@@ -60,8 +64,7 @@ int main(int argc, char *argv[])
                 }
             }
             willExit = true;
-        }
-        if (arg.startsWith("--set-cert-file", Qt::CaseInsensitive)) {
+        } else if (arg.startsWith("--set-cert-file", Qt::CaseInsensitive)) {
             int equPos;
             if ((equPos = arg.indexOf('=')) == -1) {
                 qInfo() << "Invalid parameter:" << arg;
@@ -84,6 +87,22 @@ int main(int argc, char *argv[])
                     }
                 }
             }
+            willExit = true;
+        } else if (arg.startsWith("--hash-password-salt", Qt::CaseInsensitive)) {
+            int equPos;
+            if ((equPos = arg.indexOf('=')) == -1) {
+                qInfo() << "Invalid parameter:" << arg;
+            }
+            manualSalt = arg.mid(equPos + 1);
+        } else if (arg.startsWith("--hash-password", Qt::CaseInsensitive)) {
+            int equPos;
+            if ((equPos = arg.indexOf('=')) == -1) {
+                qInfo() << "Invalid parameter:" << arg;
+            }
+            QString inputPass = arg.mid(equPos + 1);
+
+            qInfo() << Common::GetPasswordHash(inputPass, manualSalt);
+
             willExit = true;
         }
     }

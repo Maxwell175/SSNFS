@@ -1,8 +1,10 @@
 #include "ssnfsworker.h"
 #include <log.h>
 #include <serversettings.h>
+#include <common.h>
 
-#include <PH7/ph7.h>
+#include <ph7.h>
+#include <fastpbkdf2.h>
 #include <QMimeDatabase>
 #include <QFileInfo>
 
@@ -60,7 +62,7 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
         getUserKey.prepare(R"(
             SELECT `User_Key`
             FROM `Web_Tokens`
-            WHERE `Token` = ? AND ((julianday('now') - julianday(LastAccess_TmStmp)) * 24 * 60) > 30;)");
+            WHERE `Token` = ? AND ((julianday('now') - julianday(LastAccess_TmStmp)) * 24 * 60) < 30;)");
         getUserKey.addBindValue(cookie);
         if (getUserKey.exec()) {
             if (getUserKey.next()) {
@@ -73,6 +75,62 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
         } else {
             Log::error(Log::Categories["Web Server"], "Error while checking auth cookie: {0}", ToChr(getUserKey.lastError().text()));
             ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while verifying the auth cookie.");
+        }
+    } else {
+        ph7_context_throw_error(pCtx, PH7_CTX_ERR, "An invalid number or type of argument(s) was specified.");
+    }
+
+    return PH7_OK;
+}
+
+static int PH7MakeAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+
+    if (argc == 2 && ph7_value_is_string(argv[0]) && ph7_value_is_string(argv[1])) {
+        int strEmailLen;
+        const char *strEmail = ph7_value_to_string(argv[0], &strEmailLen);
+        int strClientPasswdLen;
+        const char *strClientPasswd = ph7_value_to_string(argv[1], &strClientPasswdLen);
+
+        QSqlQuery getUser(worker->configDB);
+        getUser.prepare(R"(
+            SELECT `User_Key`, `Password_Hash`
+            FROM `Users`
+            WHERE `Email` = ?;)");
+        getUser.addBindValue(QString(strEmail));
+        if (getUser.exec()) {
+            if (getUser.next()) {
+                QString accountPass = getUser.value(1).toString();
+                QList<QString> passParts = accountPass.split('$');
+                if (accountPass == Common::GetPasswordHash(QString(strClientPasswd), passParts[1], passParts[2].toInt())) {
+                    while (true) {
+                        QString newCookie = QUuid::createUuid().toString();
+                        QSqlQuery addCookie(worker->configDB);
+                        addCookie.prepare("INSERT OR IGNORE INTO `Web_Tokens`(`User_Key`,`Token`) VALUES (?,?);");
+                        addCookie.addBindValue(getUser.value(0).toLongLong());
+                        addCookie.addBindValue(newCookie);
+                        if (addCookie.exec()) {
+                            qInfo() << addCookie.numRowsAffected();
+                            if (addCookie.numRowsAffected() != 0) {
+                                QByteArray newCookieBytes = newCookie.toUtf8();
+                                ph7_result_string(pCtx, newCookieBytes.data(), newCookieBytes.length());
+                                break;
+                            }
+                        } else {
+                            Log::error(Log::Categories["Web Server"], "Error while adding a new auth cookie: {0}", ToChr(addCookie.lastError().text()));
+                            ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while generating an auth cookie.");
+                            break;
+                        }
+                    }
+                } else {
+                    ph7_result_string(pCtx, "", 0);
+                }
+            } else {
+                ph7_result_string(pCtx, "", 0);
+            }
+        } else {
+            Log::error(Log::Categories["Web Server"], "Error while getting user by email while authenticating login: {0}", ToChr(getUser.lastError().text()));
+            ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while verifying the login credentials.");
         }
     } else {
         ph7_context_throw_error(pCtx, PH7_CTX_ERR, "An invalid number or type of argument(s) was specified.");
@@ -106,6 +164,7 @@ void SSNFSWorker::processHttpRequest(char firstChar)
     QString RequestLine = socket->readLine();
     Request.append(RequestLine);
     QString RequestPath = RequestLine.split(" ")[1];
+    RequestPath = RequestPath.split('?')[0];
 
     QString FinalPath = ServerSettings::get("WebPanelPath");
     FinalPath.append(Common::resolveRelative(RequestPath));
@@ -271,6 +330,16 @@ void SSNFSWorker::processHttpRequest(char firstChar)
         if( rc != PH7_OK ) {
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while setting up check_auth_cookie() function in PH7.");
+            return;
+        }
+        rc = ph7_create_function(
+                    pVm,
+                    "make_auth_cookie",
+                    PH7MakeAuthCookie,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up make_auth_cookie() function in PH7.");
             return;
         }
 

@@ -23,8 +23,9 @@ server {
     message(Building server component.)
 
     SUBDIRS += SSNFSd/PH7 \
+               SSNFSd/fastpbkdf2 \
                SSNFSd
-    SSNFSd.depends = SSNFSd/PH7
+    SSNFSd.depends = SSNFSd/PH7 SSNFSd/fastpbkdf2
 }
 
 client {
