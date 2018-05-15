@@ -20,16 +20,10 @@ This project's goal is to create a simple way to mount a directory located on a 
  * Read Write mode (Completed) 
  * Configuration (Completed)
  * Managment interface (In Progress)
-
-## Getting ready
-
-Before starting, please install the sqlite3 command line tool. (`apt install sqlite3`)
-
-After cloning the repository, execute `sh addHooks.sh` to add the required hooks.
-
-Finally, manually execute the post-merge hook the first time: `sh post-merge`
  
 ## Building
+
+Be sure that the post-merge hook is executed before compiling. See the [Contributing](#Contributing) section for more on this.
 
 By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
 If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
@@ -57,6 +51,16 @@ sudo make install
 Unfortunatly, a proper managment interface is not ready yet. It is currently activly being developed and should be ready soon. Until then, please edit the config.db using a SQLite3 capable editor. To properly use the FS, you must at least edit the Settings table and the Shares table.
 
 On the client side, simply use the standard mount syntax: SSNFS-client <Server Host>:<Server Port>/<Share Name> <Mount Directory>
+
+## Contributing
+
+Before starting, please install the sqlite3 command line tool. (`apt install sqlite3`)
+
+After cloning the repository, execute `sh addHooks.sh` to add the required hooks.
+
+Finally, manually execute the post-merge hook the first time: `sh post-merge`
+
+Please let us know on Gitter what you are working on so we can better coordinate our efforts.
 
 ## Coding style
 This project uses the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
