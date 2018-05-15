@@ -23,7 +23,7 @@ This project's goal is to create a simple way to mount a directory located on a 
  
 ## Building
 
-Be sure that the post-merge hook is executed before compiling. See the [Contributing](#Contributing) section for more on this.
+Be sure that the post-merge hook is executed before compiling. See the [Contributing](#contributing) section for more on this.
 
 By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
 If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
