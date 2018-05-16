@@ -7,6 +7,13 @@
  * Copyright 2018 Maxwell Dreytser
  *
  */ ?>
+<style>
+    .navbar-default,
+    .navbar-default .navbar-nav > .active > a,
+    .navbar-default .navbar-nav > .open > a {
+        background-image: none;
+    }
+</style>
 <!-- Static navbar -->
 <nav class="navbar navbar-default">
     <div class="container-fluid">
