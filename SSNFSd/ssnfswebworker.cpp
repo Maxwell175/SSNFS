@@ -1,3 +1,11 @@
+/*
+ * SSNFS Client v0.1
+ *
+ * Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
+ *
+ * Copyright 2018 Maxwell Dreytser
+ */
+
 #include "ssnfsworker.h"
 #include <log.h>
 #include <serversettings.h>
@@ -11,6 +19,9 @@
 static int PH7Consumer(const void *pOutput, unsigned int nOutputLen, void *pUserData) {
     ((SSNFSWorker*)pUserData)->httpResponse.append((const char*)pOutput, nOutputLen);
     return PH7_OK;
+}
+static void PH7ErrorLogger(const char *zMessage, int iMsgType, const char *zDest, const char *zHeader) {
+    Log::warn(Log::Categories["Web Server"], "Error {0}: {1} - Dest {2}; Header {3}", iMsgType, zMessage, zDest, zHeader);
 }
 static int PH7SetHeader(ph7_context *pCtx,int argc,ph7_value **argv) {
     SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
@@ -57,6 +68,11 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
 
     if (argc == 1 && ph7_value_is_string(argv[0])) {
         QString cookie(ph7_value_to_string(argv[0], 0));
+        if (cookie.isNull() || cookie.isEmpty()) {
+            ph7_result_bool(pCtx, false);
+
+            return PH7_OK;
+        }
 
         QSqlQuery getUserKey(worker->configDB);
         getUserKey.prepare(R"(
@@ -69,6 +85,14 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
                 worker->webUserKey = getUserKey.value(0).toLongLong();
 
                 ph7_result_bool(pCtx, true);
+
+                QSqlQuery updateTokenTmStmp(worker->configDB);
+                updateTokenTmStmp.prepare(R"(
+                    UPDATE `Web_Tokens`
+                    SET `LastAccess_TmStmp` = CURRENT_TIMESTAMP
+                    WHERE `Token` = ?)");
+                updateTokenTmStmp.addBindValue(cookie);
+                updateTokenTmStmp.exec();
             } else {
                 ph7_result_bool(pCtx, false);
             }
@@ -137,6 +161,27 @@ static int PH7MakeAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
     }
 
     return PH7_OK;
+}
+
+static int PH7DelAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+
+    if (argc == 1 && ph7_value_is_string(argv[0])) {
+        QString cookie(ph7_value_to_string(argv[0], 0));
+        if (cookie.isNull() || cookie.isEmpty()) {
+            ph7_result_bool(pCtx, false);
+
+            return PH7_OK;
+        }
+
+        QSqlQuery delToken(worker->configDB);
+        delToken.prepare("DELETE FROM `Web_Tokens` WHERE `Token` = ?;");
+        delToken.addBindValue(cookie);
+        if (delToken.exec() == false) {
+            Log::error(Log::Categories["Web Server"], "Error removing token during logout: {0}", ToChr(delToken.lastError().text()));
+            ph7_context_throw_error(pCtx, PH7_CTX_WARNING, "An internal error occured while deleting the requested token.");
+        }
+    }
 }
 
 // TODO: Read this from file?
@@ -292,6 +337,15 @@ void SSNFSWorker::processHttpRequest(char firstChar)
             return;
         }
         rc = ph7_vm_config(pVm,
+            PH7_VM_CONFIG_ERR_LOG_HANDLER,
+            PH7ErrorLogger
+            );
+        if( rc != PH7_OK ){
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while installing the VM output consumer callback");
+            return;
+        }
+        rc = ph7_vm_config(pVm,
             PH7_VM_CONFIG_HTTP_REQUEST,
             Request.data(),
             Request.length()
@@ -301,6 +355,8 @@ void SSNFSWorker::processHttpRequest(char firstChar)
             Log::error(Log::Categories["Web Server"], "Error while transferring the HTTP request to PH7.");
             return;
         }
+        QString WebPanelPath = ServerSettings::get("WebPanelPath");
+        chdir(ToChr(WebPanelPath));
 
         rc = ph7_create_function(
                     pVm,
@@ -340,6 +396,16 @@ void SSNFSWorker::processHttpRequest(char firstChar)
         if( rc != PH7_OK ) {
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while setting up make_auth_cookie() function in PH7.");
+            return;
+        }
+        rc = ph7_create_function(
+                    pVm,
+                    "del_auth_cookie",
+                    PH7DelAuthCookie,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up del_auth_cookie() function in PH7.");
             return;
         }
 

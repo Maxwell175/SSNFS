@@ -3,7 +3,7 @@
  *
  * Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
  *
- * Copyright 2017 Maxwell Dreytser
+ * Copyright 2018 Maxwell Dreytser
  */
 
 #include <QCoreApplication>
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 
             QByteArray shaPass = QCryptographicHash::hash(inputPass.toUtf8(), QCryptographicHash::Sha512);
             qInfo() << Common::GetPasswordHash(shaPass.toHex().toLower(), manualSalt);
-            qInfo() << shaPass.toHex().toLower();
+            //qInfo() << shaPass.toHex().toLower();
 
             willExit = true;
         }

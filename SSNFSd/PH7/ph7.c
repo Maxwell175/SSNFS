@@ -20651,7 +20651,7 @@ PH7_PRIVATE void * PH7_StreamOpenHandle(ph7_vm *pVm,const ph7_io_stream *pStream
 				SyBlobReset(&sWorker);
 				/* Check the next path */
 			}
-			SyBlobRelease(&sWorker);
+            SyBlobRelease(&sWorker);
 		}
 		if( rc == PH7_OK ){
 			if( bPushInclude ){

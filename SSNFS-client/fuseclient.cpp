@@ -3,7 +3,7 @@
  *
  * Available under the license(s) specified at https://github.com/MDTech-us-MAN/SSNFS.
  *
- * Copyright 2017 Maxwell Dreytser
+ * Copyright 2018 Maxwell Dreytser
  */
 
 #include "fuseclient.h"
@@ -371,11 +371,7 @@ int FuseClient::initSocket()
         if (serverHello.isNull()) {
             if (socket->isOpen()) {
                 socket->close();
-                if (socket->waitForDisconnected(timeouts / 10) == false) {
-                    retryCounter++;
-                    QThread::currentThread()->sleep(retryDelay);
-                    continue;
-                }
+                socket->waitForDisconnected(timeouts / 10);
             }
 
             retryCounter++;
