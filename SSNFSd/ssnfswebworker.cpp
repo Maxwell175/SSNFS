@@ -82,7 +82,7 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
         getUserKey.addBindValue(cookie);
         if (getUserKey.exec()) {
             if (getUserKey.next()) {
-                worker->webUserKey = getUserKey.value(0).toLongLong();
+                worker->userKey = getUserKey.value(0).toLongLong();
 
                 ph7_result_bool(pCtx, true);
 

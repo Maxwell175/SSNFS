@@ -27,10 +27,10 @@ TEMPLATE = app
 
 include(../Common/Common.pri)
 
-INCLUDEPATH += PH7 fastpbkdf2
-DEPENDPATH += PH7 fastpbkdf2
+INCLUDEPATH += PH7
+DEPENDPATH += PH7
 
-LIBS += -LPH7 -lPH7 -Lfastpbkdf2 -lfastpbkdf2 -lcrypto -lssl
+LIBS += -LPH7 -lPH7
 
 SOURCES += \
     main.cpp \

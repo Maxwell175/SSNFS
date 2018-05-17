@@ -49,6 +49,7 @@ public:
     QHash<int, int> fds;
     QTime timer;
 
+    qint64 userKey = -1;
     qint64 clientKey = -1;
     QString clientName;
     qint64 shareKey = -1;
@@ -60,7 +61,6 @@ public:
     QHash<QString, QString> responseHeaders;
     quint16 httpResultCode = 200;
     QHash<quint16, QString> knownResultCodes;
-    qint64 webUserKey = -1;
 
 private:
     int socketDescriptor;

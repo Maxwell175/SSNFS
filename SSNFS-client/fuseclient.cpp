@@ -305,8 +305,8 @@ int FuseClient::initSocket()
 
         socket->setCaCertificates(QSslSocket::systemCaCertificates());
         socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-        socket->setPrivateKey("/home/maxwell/CLionProjects/SSNFS/SSNFS-client/key.pem");
-        socket->setLocalCertificate("/home/maxwell/CLionProjects/SSNFS/SSNFS-client/cert.pem");
+        socket->setPrivateKey("/home/maxwell/Coding/SSNFS/SSNFS-client/key.pem");
+        socket->setLocalCertificate("/home/maxwell/Coding/SSNFS/SSNFS-client/cert.pem");
 
         socket->connectToHostEncrypted(host, port);
 

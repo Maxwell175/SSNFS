@@ -19,19 +19,21 @@ system("echo DEFINES += ISGLOBAL=1 > $$OUT_PWD/.qmake.cache")
 system("echo PREFIX = $$PREFIX >> $$OUT_PWD/.qmake.cache")
 QMAKE_DISTCLEAN += $$OUT_PWD/.qmake.cache
 
+SUBDIRS += fastpbkdf2
+
 server {
     message(Building server component.)
 
     SUBDIRS += SSNFSd/PH7 \
-               SSNFSd/fastpbkdf2 \
                SSNFSd
-    SSNFSd.depends = SSNFSd/PH7 SSNFSd/fastpbkdf2
+    SSNFSd.depends = SSNFSd/PH7 fastpbkdf2
 }
 
 client {
     message(Building client component.)
 
     SUBDIRS += SSNFS-client
+    SSNFS-client.depends = fastpbkdf2
 }
 
 !server:!client {

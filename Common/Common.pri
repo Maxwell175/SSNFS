@@ -4,6 +4,11 @@ DEFINES += SPDLOG_ENABLE_SYSLOG
 
 INCLUDEPATH += $$PWD $$PWD/spdlog/include
 
+INCLUDEPATH += ../fastpbkdf2
+DEPENDPATH += ../fastpbkdf2
+
+LIBS += -L../fastpbkdf2 -lfastpbkdf2 -lcrypto -lssl
+
 SOURCES +=
 
 HEADERS += \

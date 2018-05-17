@@ -141,11 +141,11 @@ QString SSNFSWorker::getPerms(QString path, qint32 uid) {
         FROM `User_Share_Perms` usp
         LEFT JOIN `Client_Users`cu
         ON usp.`Client_User_Key` = cu.`Client_User_Key`
-        WHERE usp.`Share_Key` = ? AND usp.`Client_Key` = ? AND usp.`Path` = ? AND (cu.`User_UID` = ? OR cu.`User_UID` IS NULL)
+        WHERE usp.`Share_Key` = ? AND usp.`User_Key` = ? AND usp.`Path` = ? AND (cu.`User_UID` = ? OR cu.`User_UID` IS NULL)
         ORDER BY `User_UID` DESC
         LIMIT 1; )");
     getItemPerms.addBindValue(shareKey);
-    getItemPerms.addBindValue(clientKey);
+    getItemPerms.addBindValue(userKey);
     getItemPerms.addBindValue(path);
     getItemPerms.addBindValue(uid);
     if (getItemPerms.exec() == false) {
@@ -208,15 +208,13 @@ void SSNFSWorker::ReadyToRead()
         QSqlQuery getUserKey(configDB);
         QString clientCert = socket->peerCertificate().toPem();
         getUserKey.prepare(R"(
-            SELECT cc.Client_Key, cc.Client_Info, c.Client_Name
-            FROM Client_Certs cc
-            JOIN Clients c
-            ON cc.Client_Key = c.Client_Key
-            WHERE cc.Client_Cert = ?; )");
+            SELECT User_Key, Client_Key, Client_Info, Client_Name
+            FROM Clients
+            WHERE Client_Cert = ?; )");
         getUserKey.addBindValue(clientCert);
         if (getUserKey.exec() == false) {
             qInfo() << getUserKey.executedQuery();
-            Log::error(Log::Categories["Authentication"], "Unable to get the user cert from the DB: {0}", getUserKey.lastError().text().toUtf8().data());
+            Log::error(Log::Categories["Authentication"], "Unable to get the user by certificate from the DB: {0}", getUserKey.lastError().text().toUtf8().data());
             socket->close();
             return;
         }
@@ -230,8 +228,10 @@ void SSNFSWorker::ReadyToRead()
             socket->close();
             return;
         }
-        clientKey = getUserKey.value(0).toLongLong();
-        clientName = getUserKey.value(2).toString();
+
+        userKey = getUserKey.value(0).toLongLong();
+        clientKey = getUserKey.value(1).toLongLong();
+        clientName = getUserKey.value(3).toString();
 
         qint32 clientSysInfoLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
         QByteArray clientSysInfo = Common::readExactBytes(socket, clientSysInfoLen);
@@ -245,7 +245,7 @@ void SSNFSWorker::ReadyToRead()
         }
 
         QString clientSysInfoStr(clientSysInfo);
-        if (clientSysInfoStr != getUserKey.value(1).toString()) {
+        if (clientSysInfoStr != getUserKey.value(2).toString()) {
             Log::error(Log::Categories["Authentication"], "The system info provided by the client at IP {0} does not match the certificate used.", socket->peerAddress().toString().toUtf8().data());
             socket->readAll();
             socket->write(Common::getBytes(Common::Error));
@@ -288,11 +288,11 @@ void SSNFSWorker::ReadyToRead()
 
         QSqlQuery getShare(configDB);
         getShare.prepare(R"(
-            SELECT s.`Share_Key`, s.`Local_Path`, cs.`Default_Perms`
-            FROM `Client_Shares` cs
+            SELECT s.`Share_Key`, s.`Local_Path`, us.`Default_Perms`
+            FROM `User_Shares` us
             JOIN `Shares` s
-            ON cs.`Client_Key` = ? AND s.`Share_Name` = ? AND cs.`Share_Key` = s.`Share_Key`; )");
-        getShare.addBindValue(clientKey);
+            ON us.`User_Key` = ? AND s.`Share_Name` = ? AND us.`Share_Key` = s.`Share_Key`; )");
+        getShare.addBindValue(userKey);
         getShare.addBindValue(QString(clientShare));
 
         if (getShare.exec() == false) {
@@ -304,7 +304,7 @@ void SSNFSWorker::ReadyToRead()
             Log::error(Log::Categories["Authentication"], "The client at IP {0} requested a share that is either unavailable to them or does not exist: {1}", socket->peerAddress().toString().toUtf8().data(), clientShare.data());
             socket->readAll();
             socket->write(Common::getBytes(Common::Error));
-            QByteArray errorMsg = "Invalid Share specified. Either it is unavailable to you or it does not exist.";
+            QByteArray errorMsg = "Invalid Share specified. Either it does not exist or it is unavailable to you.";
             socket->write(Common::getBytes((qint32)errorMsg.length()));
             socket->write(errorMsg);
             socket->close();
