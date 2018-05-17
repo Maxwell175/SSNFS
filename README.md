@@ -23,7 +23,15 @@ This project's goal is to create a simple way to mount a directory located on a 
  
 ## Building
 
-Be sure that the post-merge hook is executed before compiling. See the [Contributing](#contributing) section for more on this.
+Before starting, please install the sqlite3 command line tool. (`apt install sqlite3`)
+
+Then, clone the repository as well as the submodules: `git clone --recursive https://github.com/MDTech-us-MAN/SSNFS.git` 
+
+Or, if you already cloned the repository, but forgot to include `--recursive`, just run the following commands in the repository directory: `git submodule update --init --recursive`
+
+After cloning the repository, execute `sh addHooks.sh` to add the required hooks.
+
+Finally, manually execute the post-merge hook the first time: `sh post-merge`
 
 By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
 If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
@@ -53,12 +61,6 @@ Unfortunatly, a proper managment interface is not ready yet. It is currently act
 On the client side, simply use the standard mount syntax: SSNFS-client <Server Host>:<Server Port>/<Share Name> <Mount Directory>
 
 ## Contributing
-
-Before starting, please install the sqlite3 command line tool. (`apt install sqlite3`)
-
-After cloning the repository, execute `sh addHooks.sh` to add the required hooks.
-
-Finally, manually execute the post-merge hook the first time: `sh post-merge`
 
 Please let us know on Gitter what you are working on so we can better coordinate our efforts.
 
