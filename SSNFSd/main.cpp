@@ -23,6 +23,8 @@ int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
 
+    qSetMessagePattern("%{file}:%{line} - %{message}");
+
     ServerSettings::reloadSettings();
 
     if (app.arguments().contains("-h", Qt::CaseInsensitive) || app.arguments().contains("--help", Qt::CaseInsensitive)) {

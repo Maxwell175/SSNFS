@@ -107,12 +107,23 @@ void SSNFSWorker::run()
 
     connect(socket, static_cast<void(QSslSocket::*)(const QList<QSslError> &)>(&QSslSocket::sslErrors),
             [this](QList<QSslError> errors) {
-        socket->ignoreSslErrors(errors);
+        QList<QSslError> errorsToIgnore;
+        foreach (QSslError error, errors) {
+            if (error.error() == QSslError::SelfSignedCertificate ||
+                error.error() == QSslError::SelfSignedCertificateInChain ||
+                error.error() == QSslError::NoPeerCertificate) {
+
+                errorsToIgnore.append(error);
+            } else {
+                Log::error(Log::Categories["Authentication"], "Client connecting from IP {0} had the following SSL errors: {1}",
+                        ToChr(socket->peerAddress().toString()), ToChr(error.errorString()));
+            }
+        }
+
+        socket->ignoreSslErrors(errorsToIgnore);
     });
 
     socket->waitForEncrypted(-1);
-    qInfo() << socket->errorString();
-    qInfo() << socket->sslErrors();
     socket->flush();
 
     while (socket->isOpen() && socket->isEncrypted()) {
@@ -180,10 +191,16 @@ void SSNFSWorker::ReadyToRead()
             return;
         } else if (clientResult == Common::Hello) {
             if (socket->peerCertificate().isNull()) {
-                Log::warn(Log::Categories["Authentication"], "Client from IP {0} didn't provide a client certificate.", socket->peerAddress().toString().toUtf8().data());
+                socket->waitForReadyRead(1);
+                Log::warn(Log::Categories["Authentication"], "Client from IP {0} didn't provide a client certificate.", ToChr(socket->peerAddress().toString()));
                 socket->close();
                 return;
             }
+        } else if (clientResult == Common::Null) {
+            // This is some strange connection which I think is being sent by Chrome (or other web browsers) before connecting.
+            // Just close it and don't report it.
+            socket->close();
+            return;
         } else {
             if (socket->isOpen()) {
                 socket->close();

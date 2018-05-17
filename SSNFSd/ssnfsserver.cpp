@@ -101,7 +101,6 @@ SSNFSServer::SSNFSServer(QObject *parent)
 
 void SSNFSServer::incomingConnection(qintptr socketDescriptor)
 {
-    qDebug() << QThread::currentThread();
     SSNFSWorker *thread = new SSNFSWorker(socketDescriptor, this);
     connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
     thread->start();

@@ -26,12 +26,13 @@
 #define ToChr(x) x.toUtf8().data()
 
 namespace Common {
-    const quint8 MAX_RESULTCODE = 3;
+    const quint8 MAX_RESULTCODE = 4;
     enum ResultCode : quint8 {
-        Hello = 0,
-        OK = 1,
-        Error = 2,
-        Share = 3,
+        Null = 0,
+        Hello = 1,
+        OK = 2,
+        Error = 3,
+        Share = 4,
 
         HTTP_GET = 'G',
         HTTP_POST = 'P',
@@ -39,29 +40,29 @@ namespace Common {
         InvalidResult = UINT8_MAX
     };
 
-    const quint16 MAX_OPERATION = 20;
+    const quint16 MAX_OPERATION = 21;
     enum Operation : quint16 {
-        getattr = 0,
-        readdir = 1,
-        open = 2,
-        read = 3,
-        access = 4,
-        readlink = 5,
-        mknod = 6,
-        mkdir = 7,
-        unlink = 8,
-        rmdir = 9,
-        symlink = 10,
-        rename = 11,
-        chmod = 12,
-        chown = 13,
-        truncate = 14,
-        utimens = 15,
-        write = 16,
-        writebulk = 17,
-        release = 18,
-        statfs = 19,
-        UpdateLocalUsers = 20,
+        getattr = 1,
+        readdir = 2,
+        open = 3,
+        read = 4,
+        access = 5,
+        readlink = 6,
+        mknod = 7,
+        mkdir = 8,
+        unlink = 9,
+        rmdir = 10,
+        symlink = 11,
+        rename = 12,
+        chmod = 13,
+        chown = 14,
+        truncate = 15,
+        utimens = 16,
+        write = 17,
+        writebulk = 18,
+        release = 19,
+        statfs = 20,
+        UpdateLocalUsers = 21,
 
         InvalidOperation = UINT16_MAX
     };
@@ -191,7 +192,7 @@ namespace Common {
     }
     inline Operation getOperationFromBytes(QByteArray input) {
         quint16 result = getUInt16FromBytes(input);
-        if (result > MAX_OPERATION)
+        if (result == 0 || result > MAX_OPERATION)
             return Operation::InvalidOperation;
         else
             return (Operation) result;

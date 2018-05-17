@@ -134,7 +134,6 @@ static int PH7MakeAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
                         addCookie.addBindValue(getUser.value(0).toLongLong());
                         addCookie.addBindValue(newCookie);
                         if (addCookie.exec()) {
-                            qInfo() << addCookie.numRowsAffected();
                             if (addCookie.numRowsAffected() != 0) {
                                 QByteArray newCookieBytes = newCookie.toUtf8();
                                 ph7_result_string(pCtx, newCookieBytes.data(), newCookieBytes.length());
