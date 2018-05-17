@@ -49,11 +49,27 @@
 </nav>
 
 <script type="text/javascript">
+    var resize_timeout;
+    $(window).on('resize orientationchange', function(){
+        clearTimeout(resize_timeout);
+
+        resize_timeout = setTimeout(function(){
+            var open_menu = $('.dropdown.open a');
+            if (open_menu.length) {
+                open_menu.click();
+            }
+        }, 50);
+    });
+
     // Add animations to Bootstrap dropdown menus when expanding.
     $('.dropdown').on('show.bs.dropdown', function() {
-        $(this).find('.dropdown-menu').first().stop(true, true).slideDown(200);
+        if ($('.navbar-toggle').css('display') === "none")
+            $(this).find('.dropdown-menu').first().stop(true, true).slideDown(200);
     });
     $('.dropdown').on('hide.bs.dropdown', function() {
-        $(this).find('.dropdown-menu').first().stop(true, true).slideUp(200);
+        if ($('.navbar-toggle').css('display') === "none")
+            $(this).find('.dropdown-menu').first().stop(true, true).slideUp(200, function () {
+                $('.dropdown ul').css('display', '')
+            });
     });
 </script>
