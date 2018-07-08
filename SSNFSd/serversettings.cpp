@@ -12,10 +12,10 @@
 #include <QSqlRecord>
 #include <QSqlField>
 
-void ServerSettings::reloadSettings() {
+bool ServerSettings::reloadSettings() {
     QSqlDatabase confDB = getConfDB();
-    if (!confDB.isValid()) {
-        return;
+    if (!confDB.isValid() || !confDB.isOpen()) {
+        return false;
     }
     QSqlQuery query("SELECT `Setting_Key`, `Setting_Value`, `Setting_Desc`, `Updt_TmStmp`, `Updt_User` FROM `Settings`", confDB);
 
@@ -31,7 +31,9 @@ void ServerSettings::reloadSettings() {
         }
     } else {
         Log::error(Log::Categories["Core"], "Error retrieving configuration settings from DB: {0}", query.lastError().text().toUtf8().data());
+        return false;
     }
+    return true;
 }
 
 const QString ServerSettings::set(QString key, QString value, QString updtUser) {

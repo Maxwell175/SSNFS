@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QSslKey>
+#include <QDir>
 
 #include <log.h>
 #include <serversettings.h>
@@ -25,7 +26,10 @@ int main(int argc, char *argv[])
 
     qSetMessagePattern("%{file}:%{line} - %{message}");
 
-    ServerSettings::reloadSettings();
+    if (ServerSettings::reloadSettings() == false) {
+        qCritical() << "Can't load settings! Exiting.";
+        exit(1);
+    }
 
     if (app.arguments().contains("-h", Qt::CaseInsensitive) || app.arguments().contains("--help", Qt::CaseInsensitive)) {
         qInfo() << QFileInfo(app.applicationFilePath()).fileName() << "[OPTIONS]";
@@ -138,6 +142,14 @@ QSqlDatabase getConfDB() {
     if (!configDB.isValid()) {
         configDB = QSqlDatabase::addDatabase("QSQLITE");
         QString DBPath = QString("%1/config.db").arg(_CONFIG_DIR);
+        if (QFile::exists(DBPath) == false) {
+            if (Log::isInit) {
+                Log::error(Log::Categories["Core"], "The database could not be found at {0}/config.db.", _CONFIG_DIR);
+            } else {
+                qCritical() << "The database could not be found at " _CONFIG_DIR "/config.db.";
+            }
+            return QSqlDatabase();
+        }
         configDB.setDatabaseName(DBPath);
     }
     if (!configDB.isOpen()) {

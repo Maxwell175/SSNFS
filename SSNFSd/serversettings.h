@@ -45,7 +45,7 @@ public:
     static const QString set(QString key, QString value, QString updtUser);
     //static const QHash<QString, SettingInfo> settings() { return m_settings; }
 
-    static void reloadSettings();
+    static bool reloadSettings();
 
 private:
     static QHash<QString, SettingInfo> m_settings;
