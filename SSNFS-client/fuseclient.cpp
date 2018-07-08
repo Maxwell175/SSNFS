@@ -175,6 +175,14 @@ int FuseClient::fs_opt_proc(void *data, const char *arg, int key, fuse_args *out
             return 0;
         }
         else if (mountPath.isNull()) {
+            struct stat buf;
+            stat(arg, &buf);
+            // If the directory is inaccessible specifically due to a FUSE error code, try unmounting this broken mount.
+            if (errno == ENOTCONN) {
+                QString fuseUnmount("fusermount -u ");
+                fuseUnmount.append(strArg);
+                system(ToChr(fuseUnmount));
+            }
             QFileInfo mountPathInfo(strArg);
             if (mountPathInfo.exists() == false || !mountPathInfo.isDir() || mountPathInfo.isSymLink()) {
                 qCritical() << "The specified mount path does not exist or is not a valid directory.";
