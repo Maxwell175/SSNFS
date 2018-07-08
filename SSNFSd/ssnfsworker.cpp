@@ -225,9 +225,10 @@ void SSNFSWorker::ReadyToRead()
         QSqlQuery getUserKey(configDB);
         QString clientCert = socket->peerCertificate().toPem();
         getUserKey.prepare(R"(
-            SELECT User_Key, Client_Key, Client_Info, Client_Name
+            SELECT Clients.User_Key, Client_Key, Client_Info, Client_Name, FullName
             FROM Clients
-            WHERE Client_Cert = ?; )");
+            JOIN Users
+              ON Client_Cert = ? AND Clients.User_Key = Users.User_Key; )");
         getUserKey.addBindValue(clientCert);
         if (getUserKey.exec() == false) {
             qInfo() << getUserKey.executedQuery();
@@ -249,6 +250,7 @@ void SSNFSWorker::ReadyToRead()
         userKey = getUserKey.value(0).toLongLong();
         clientKey = getUserKey.value(1).toLongLong();
         clientName = getUserKey.value(3).toString();
+        userName = getUserKey.value(4).toString();
 
         qint32 clientSysInfoLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
         QByteArray clientSysInfo = Common::readExactBytes(socket, clientSysInfoLen);
@@ -336,6 +338,7 @@ void SSNFSWorker::ReadyToRead()
         Log::info(Log::Categories["Authentication"], "Client from IP {0} subscribed to Share: {1}", socket->peerAddress().toString().toUtf8().data(), clientShare.data());
         socket->write(Common::getBytes(Common::OK));
         status = WaitingForOperation;
+        setObjectName("Connected");
         working = false;
     }
         break;

@@ -32,6 +32,9 @@ public:
         configDB.close();
         QSqlDatabase::removeDatabase(configDB.databaseName());
         socket->deleteLater();
+        if (isRunning()) {
+            abort();
+        }
     }
 
     void run() override;
@@ -56,6 +59,7 @@ public:
     QString shareName;
     QString defaultPerms;
     QString localPath;
+    QString userName;
 
     QByteArray httpResponse;
     QHash<QString, QString> responseHeaders;

@@ -47,8 +47,10 @@
             font-weight: bold;
         }
 
-        .widget-col {
-            padding-bottom: 250px;
+        @media (min-width: 992px) {
+            .widget-col {
+                padding-bottom: 20vh;
+            }
         }
 
         .panel-default>.panel-heading {
@@ -71,6 +73,11 @@
         .moreinfo-icon {
             font-size: 1.5em;
             padding: 3px !important;
+        }
+
+        .no-connections {
+            color: darkgray;
+            text-align: center;
         }
     </style>
 </head>
@@ -97,51 +104,22 @@
                         <tr>
                             <th>User</th>
                             <th>Computer</th>
+                            <th>Share</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                        </tr>
+                        <?php foreach(get_connected() as $client): ?>
+                            <tr>
+                                <td><?php echo $client["userName"]; ?></td>
+                                <td><?php echo $client["clientName"]; ?></td>
+                                <td><?php echo $client["shareName"]; ?></td>
+                            </tr>
+                        <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <?php if (!isset($client)): ?>
+                        <div class="no-connections">There are no active connections.</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

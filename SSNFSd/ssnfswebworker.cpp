@@ -183,6 +183,31 @@ static int PH7DelAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
     }
 }
 
+static int PH7GetConnected(ph7_context *pCtx,int argc,ph7_value **argv) {
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+
+    ph7_value *clients = ph7_context_new_array(pCtx);
+    foreach (const QObject *currChild, worker->parent()->children()) {
+        if (currChild->objectName() == "Connected") {
+            SSNFSWorker *currWorker = (SSNFSWorker*)currChild;
+            qInfo() << currWorker->clientName;
+            qInfo() << currWorker->userName;
+            ph7_value *clientInfo = ph7_context_new_array(pCtx);
+            ph7_value *userNameVal = ph7_context_new_scalar(pCtx);
+            ph7_value_string(userNameVal, ToChr(currWorker->userName), -1);
+            ph7_array_add_strkey_elem(clientInfo, "userName", userNameVal);
+            ph7_value *clientNameVal = ph7_context_new_scalar(pCtx);
+            ph7_value_string(clientNameVal, ToChr(currWorker->clientName), -1);
+            ph7_array_add_strkey_elem(clientInfo, "clientName", clientNameVal);
+            ph7_value *shareNameVal = ph7_context_new_scalar(pCtx);
+            ph7_value_string(shareNameVal, ToChr(currWorker->shareName), -1);
+            ph7_array_add_strkey_elem(clientInfo, "shareName", shareNameVal);
+            ph7_array_add_elem(clients, NULL, clientInfo);
+        }
+    }
+    ph7_result_value(pCtx, clients);
+}
+
 // TODO: Read this from file?
 #define HTTP_500_RESPONSE "HTTP/1.1 500 Internal Server Error\r\n" \
                           "Connection: close\r\n\r\n" \
@@ -405,6 +430,16 @@ void SSNFSWorker::processHttpRequest(char firstChar)
         if( rc != PH7_OK ) {
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while setting up del_auth_cookie() function in PH7.");
+            return;
+        }
+        rc = ph7_create_function(
+                    pVm,
+                    "get_connected",
+                    PH7GetConnected,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up get_connected() function in PH7.");
             return;
         }
 
