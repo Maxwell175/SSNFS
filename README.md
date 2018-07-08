@@ -36,7 +36,16 @@ Finally, manually execute the post-merge hook the first time: `sh post-merge`
 By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
 If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
 
-Server:
+**To build both client and server:**
+```
+mkdir build
+cd build
+qmake ..
+make
+sudo make install
+```
+
+**To build only server:**
 ```
 mkdir build-server
 cd build-server
@@ -45,7 +54,7 @@ make
 sudo make install
 ```
 
-Client:
+**To build only client:**
 ```
 mkdir build-client
 cd build-client

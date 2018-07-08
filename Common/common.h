@@ -19,7 +19,6 @@
 #include <QThread>
 #include <unistd.h>
 #include <QStringList>
-#include <QRandomGenerator>
 
 #include <fastpbkdf2.h>
 
@@ -314,7 +313,7 @@ namespace Common {
        QString randomString;
        for(int i=0; i<randomStringLength; ++i)
        {
-           int index = QRandomGenerator::system()->bounded(possibleCharacters.length());
+           int index = qrand() % possibleCharacters.length();
            QChar nextChar = possibleCharacters.at(index);
            randomString.append(nextChar);
        }

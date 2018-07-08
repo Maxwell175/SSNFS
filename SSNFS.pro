@@ -37,5 +37,11 @@ client {
 }
 
 !server:!client {
-    error("Please select the component\(s\) you would like to configure. To do so, use either `qmake \"CONFIG+=server\" SSNFS.pro' or `qmake \"CONFIG+=client\" SSNFS.pro'.")
+    message(Building both client and server component.)
+
+    SUBDIRS += SSNFSd/PH7 \
+               SSNFSd
+    SSNFSd.depends = SSNFSd/PH7 fastpbkdf2
+    SUBDIRS += SSNFS-client
+    SSNFS-client.depends = fastpbkdf2
 }
