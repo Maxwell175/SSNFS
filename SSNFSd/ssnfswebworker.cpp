@@ -180,10 +180,17 @@ static int PH7DelAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
             Log::error(Log::Categories["Web Server"], "Error removing token during logout: {0}", ToChr(delToken.lastError().text()));
             ph7_context_throw_error(pCtx, PH7_CTX_WARNING, "An internal error occured while deleting the requested token.");
         }
+    } else {
+        ph7_context_throw_error(pCtx, PH7_CTX_ERR, "An invalid number or type of argument(s) was specified.");
     }
+
+    return PH7_OK;
 }
 
 static int PH7GetConnected(ph7_context *pCtx,int argc,ph7_value **argv) {
+    (void) argc;
+    (void) argv;
+
     SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
 
     ph7_value *clients = ph7_context_new_array(pCtx);
@@ -206,6 +213,8 @@ static int PH7GetConnected(ph7_context *pCtx,int argc,ph7_value **argv) {
         }
     }
     ph7_result_value(pCtx, clients);
+
+    return PH7_OK;
 }
 
 // TODO: Read this from file?
