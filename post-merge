@@ -1,10 +1,20 @@
 #!/bin/sh
 
-mv SSNFSd/config.db SSNFSd/config.db.old
+mvchk(){
+    [ -f $1 ] && mv $1 $2  
+}
+
+rmchk(){
+    [ -f $1 ] && rm $1
+}
+
+mvchk SSNFSd/config.db SSNFSd/config.db.old
+
 sqlite3 SSNFSd/config.db < SSNFSd/config.sql
+
 if [ $? -eq 0 ]; then
-    rm SSNFSd/config.db.old
+    rmchk SSNFSd/config.db.old
 else
-    rm SSNFSd/config.db
-    mv SSNFSd/config.db.old SSNFSd/config.db
+    rmchk SSNFSd/config.db
+    mvchk SSNFSd/config.db.old SSNFSd/config.db
 fi
