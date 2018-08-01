@@ -305,6 +305,7 @@ inline QByteArray getSystemInfo() {
     if (SystemStr.endsWith('|'))
         SystemStr.truncate(SystemStr.length() - 1);
 
+    qCritical() << SystemStr;
     return SystemStr;
 }
 

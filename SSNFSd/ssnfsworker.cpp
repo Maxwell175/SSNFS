@@ -19,7 +19,10 @@
 #include <unistd.h>
 #include <iostream>
 #include <QStorageInfo>
+#include <QByteArray>
 #include <QElapsedTimer>
+#include <QTextCodec>
+#include <QStack>
 
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
@@ -81,7 +84,6 @@ void SSNFSWorker::run()
 {
     SSNFSServer *parent = ((SSNFSServer*)this->parent());
     configDB.open();
-
     socket = new QSslSocket();
 
     socket->setPeerVerifyMode(QSslSocket::VerifyPeer);
@@ -170,6 +172,22 @@ QString SSNFSWorker::getPerms(QString path, qint32 uid) {
         return getItemPerms.value(0).toString();
     }
 }
+
+ QByteArray SSNFSWorker::isValidPath(QByteArray path){
+    QString newPath = QTextCodec::codecForMib(1015)->toUnicode(path);
+    QStringList directories = newPath.split("/");
+    QStack<QString> normalizer;
+    // Assuming the path starts and ends with /
+    for (int i = 1; i < directories.size()-1; ++i){
+        if (QString::compare(directories.at(i),"..")){
+            if (!normalizer.isEmpty()) normalizer.pop();
+            else return NULL;
+        }
+        else normalizer.push(directories.at(i));
+    }
+    return path;
+}
+
 
 void SSNFSWorker::ReadyToRead()
 {
@@ -395,12 +413,28 @@ void SSNFSWorker::ReadyToRead()
             qint32 uid = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
             quint32 pathLength = Common::getUInt32FromBytes(Common::readExactBytes(socket, 4));
-
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            // Returns QString::null if the path is not valid
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
 
             struct stat stbuf;
+
+            if (targetPath.isNull()){
+
+                    Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to access directory {2} but didn't have permission.",
+                                            ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                    res = -EACCES;
+
+                    socket->write(Common::getBytes(res));
+
+                    status = WaitingForOperation;
+
+                    working = false;
+
+                    return;
+            }
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -465,8 +499,27 @@ void SSNFSWorker::ReadyToRead()
 
             int res;
 
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to access directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
             QString perms = getPerms(targetPath, uid);
+
             if (!perms.contains('r')) {
+
                 Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
                         ToChr(clientName), ToChr(shareName), targetPath.data());
 
@@ -529,9 +582,25 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -616,7 +685,26 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
+
+            int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -628,7 +716,6 @@ void SSNFSWorker::ReadyToRead()
 
             qint64 readOffset = Common::getInt64FromBytes(Common::readExactBytes(socket, 8));
 
-            int res;
 
             QByteArray readBuf;
             readBuf.fill('\x00', readSize);
@@ -685,9 +772,26 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                  Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                                ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                  res = -EACCES;
+
+                  socket->write(Common::getBytes(res));
+
+                  status = WaitingForOperation;
+
+                  working = false;
+
+                  return;
+            }
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -733,9 +837,26 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -772,9 +893,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to access directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -854,9 +993,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to access directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -888,9 +1045,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                 Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to access directory {2} but didn't have permission.",
+                                                ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                 res = -EACCES;
+
+                 socket->write(Common::getBytes(res));
+
+                 status = WaitingForOperation;
+
+                 working = false;
+
+                 return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -932,9 +1107,25 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to access directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -976,13 +1167,31 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 targetPathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, targetPathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, targetPathLength));
+
+            int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
 
             quint16 linkPathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
             QByteArray linkPath = Common::readExactBytes(socket, linkPathLength);
 
-            int res;
+
 
             QString finalPath(localPath);
             finalPath.append(linkPath);
@@ -1070,9 +1279,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -1108,9 +1335,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -1148,9 +1393,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -1180,9 +1443,27 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
 
             int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
+
+
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -1220,7 +1501,25 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
+
+            int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
@@ -1237,8 +1536,6 @@ void SSNFSWorker::ReadyToRead()
             QByteArray dataToWrite;
 
             dataToWrite.append(Common::readExactBytes(socket, Size));
-
-            int res;
 
             int actuallyWritten = -1;
 
@@ -1302,7 +1599,25 @@ void SSNFSWorker::ReadyToRead()
 
                 quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2, false));
 
-                QByteArray targetPath = Common::readExactBytes(socket, pathLength, false);
+                QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength, false));
+
+                int res;
+
+                if (targetPath.isNull()){
+
+                    Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                            ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                    res = -EACCES;
+
+                    socket->write(Common::getBytes(res));
+
+                    status = WaitingForOperation;
+
+                    working = false;
+
+                    return;
+                }
 
                 QString finalPath(localPath);
                 finalPath.append(targetPath);
@@ -1321,8 +1636,6 @@ void SSNFSWorker::ReadyToRead()
                 dataToWrite.append(Common::readExactBytes(socket, Size, false));
 
                 qDebug() << "Got Data:" << timer.elapsed();
-
-                int res;
 
                 int actuallyWritten = -1;
 
@@ -1381,12 +1694,30 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
+
+            int res;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
 
-            int res;
+
 
             qint32 fakeFd = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
@@ -1439,12 +1770,28 @@ void SSNFSWorker::ReadyToRead()
 
             quint16 pathLength = Common::getUInt16FromBytes(Common::readExactBytes(socket, 2));
 
-            QByteArray targetPath = Common::readExactBytes(socket, pathLength);
+            QByteArray targetPath = isValidPath(Common::readExactBytes(socket, pathLength));
+
+            int res = 0;
+
+            if (targetPath.isNull()){
+
+                Log::info(Log::Categories["File System"], "Client {0} Share {1}: User tried to read directory {2} but didn't have permission.",
+                                        ToChr(clientName), ToChr(shareName), targetPath.data());
+
+                res = -EACCES;
+
+                socket->write(Common::getBytes(res));
+
+                status = WaitingForOperation;
+
+                working = false;
+
+                return;
+            }
 
             QString finalPath(localPath);
             finalPath.append(targetPath);
-
-            int res = 0;
 
             struct statvfs fsInfo;
 
