@@ -159,8 +159,10 @@ int FuseClient::fs_opt_proc(void *data, const char *arg, int key, fuse_args *out
 
     case FUSE_OPT_KEY_NONOPT:
     {
+        //qInfo() << arg;
         QString strArg(arg);
         if (host.isNull() && shareName.isNull() && strArg.count(QLatin1Char('/')) == 1) {
+
             QStringList parts = strArg.split('/');
             QStringList hostParts = parts[0].split(':');
             host = hostParts[0];
@@ -184,6 +186,7 @@ int FuseClient::fs_opt_proc(void *data, const char *arg, int key, fuse_args *out
                 system(ToChr(fuseUnmount));
             }
             QFileInfo mountPathInfo(strArg);
+            qCritical() << strArg ;
             if (mountPathInfo.exists() == false || !mountPathInfo.isDir() || mountPathInfo.isSymLink()) {
                 qCritical() << "The specified mount path does not exist or is not a valid directory.";
                 return -1;
@@ -205,9 +208,8 @@ int FuseClient::fs_opt_proc(void *data, const char *arg, int key, fuse_args *out
 
 void FuseClient::started() {
     connect(&passwdWatcher, SIGNAL(fileChanged(QString)), this, SLOT(syncLocalUsers()), Qt::QueuedConnection);
-
     struct fuse_operations fs_oper = {};
-
+    qInfo() << qApp->arguments();
     fs_oper.init = fs_call_init;
     fs_oper.getattr = fs_call_getattr;
     fs_oper.readdir = fs_call_readdir;
@@ -313,8 +315,9 @@ int FuseClient::initSocket()
 
         socket->setCaCertificates(QSslSocket::systemCaCertificates());
         socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-        socket->setPrivateKey("/home/maxwell/Coding/SSNFS/SSNFS-client/key.pem");
-        socket->setLocalCertificate("/home/maxwell/Coding/SSNFS/SSNFS-client/cert.pem");
+        // Does not given an error if these files are not found but does not mount as well
+        socket->setPrivateKey("/home/deepakchethan/Git/build-SSNFS-Desktop-Debug/SSNFS-client/key.pem");
+        socket->setLocalCertificate("/home/deepakchethan/Git/build-SSNFS-Desktop-Debug/SSNFS-client/cert.pem");
 
         socket->connectToHostEncrypted(host, port);
 

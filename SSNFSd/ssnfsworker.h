@@ -40,6 +40,7 @@ public:
     void run() override;
 
     QString getPerms(QString path, qint32 uid);
+    QByteArray isValidPath(QByteArray path);
     void ReadyToRead();
     void processHttpRequest(char firstChar);
 
@@ -51,7 +52,6 @@ public:
     bool working = false;
     QHash<int, int> fds;
     QTime timer;
-
     qint64 userKey = -1;
     qint64 clientKey = -1;
     QString clientName;
