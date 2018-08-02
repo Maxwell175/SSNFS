@@ -33,7 +33,7 @@ public:
         QSqlDatabase::removeDatabase(configDB.databaseName());
         socket->deleteLater();
         if (isRunning()) {
-            abort();
+            exit();
         }
     }
 
@@ -66,8 +66,15 @@ public:
     quint16 httpResultCode = 200;
     QHash<quint16, QString> knownResultCodes;
 
+    void handleRegistration();
+
 private:
     int socketDescriptor;
+
+
+public:
+    static qint64 checkEmailPass(QSqlDatabase db, QString email, QString password);
+
 };
 
 #endif // SSNFSWORKER_H

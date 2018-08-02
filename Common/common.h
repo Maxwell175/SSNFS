@@ -6,6 +6,8 @@
  * Copyright 2018 Maxwell Dreytser
  */
 
+//#pragma once
+
 #ifndef COMMON_H
 #define COMMON_H
 
@@ -27,13 +29,14 @@
 #define ToChr(x) x.toUtf8().data()
 
 namespace Common {
-const quint8 MAX_RESULTCODE = 4;
+const quint8 MAX_RESULTCODE = 5;
 enum ResultCode : quint8 {
     Null = 0,
     Hello = 1,
     OK = 2,
     Error = 3,
     Share = 4,
+    Register = 5,
 
     HTTP_GET = 'G',
     HTTP_POST = 'P',
@@ -353,6 +356,5 @@ inline QString GetPasswordHash(QString password, QString salt = QString(), int i
     return finalResult;
 }
 }
-
 
 #endif // COMMON_H

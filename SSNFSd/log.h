@@ -108,6 +108,7 @@ public:
         Categories.insert("File System", LogCategory("File System", "Various technical messages generated while processing requests."));
         Categories.insert("Core", LogCategory("Core", "Messages related to the server status including configuration changes."));
         Categories.insert("Web Server", LogCategory("Web Server", "Messages related to the web server."));
+        Categories.insert("Registration", LogCategory("Registration", "Messages related to the registration of new users and computers."));
 
         QSqlDatabase configDB = getConfDB();
         if (!configDB.isValid()) {

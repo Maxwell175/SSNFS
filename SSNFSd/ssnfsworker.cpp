@@ -181,33 +181,40 @@ void SSNFSWorker::ReadyToRead()
     {
         working = true;
         Common::ResultCode clientResult = Common::getResultFromBytes(Common::readExactBytes(socket, 1));
-        if (clientResult == Common::HTTP_GET || clientResult == Common::HTTP_POST) {
-            processHttpRequest((uint8_t)clientResult);
+        switch (clientResult) {
+        case Common::HTTP_GET:
+        case Common::HTTP_POST:
+            processHttpRequest((int8_t)clientResult);
             socket->flush();
             if (socket->bytesToWrite() > 0) {
                 socket->waitForBytesWritten(-1);
             }
             socket->close();
             return;
-        } else if (clientResult == Common::Hello) {
+        case Common::Hello:
             if (socket->peerCertificate().isNull()) {
                 socket->waitForReadyRead(1);
                 Log::warn(Log::Categories["Authentication"], "Client from IP {0} didn't provide a client certificate.", ToChr(socket->peerAddress().toString()));
                 socket->close();
                 return;
             }
-        } else if (clientResult == Common::Null) {
+            break;
+        case Common::Null:
             // This is some strange connection which I think is being sent by Chrome (or other web browsers) before connecting.
             // Just close it and don't report it.
             socket->close();
             return;
-        } else {
+        case Common::Register:
+            handleRegistration();
+            return;
+        default:
             if (socket->isOpen()) {
                 socket->close();
             }
             Log::warn(Log::Categories["Authentication"], "Client from IP {0} sent an invalid Hello code.", socket->peerAddress().toString().toUtf8().data());
             return;
         }
+
         qint32 clientHelloLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
         QByteArray clientHello = Common::readExactBytes(socket, clientHelloLen);
 
@@ -221,14 +228,14 @@ void SSNFSWorker::ReadyToRead()
 
         Log::info(Log::Categories["Authentication"], "Client from IP {0} connecting with Hello message: {1}", socket->peerAddress().toString().toUtf8().data(), clientHello.data());
 
-        //qInfo() << socket->peerCertificate().toPem();
         QSqlQuery getUserKey(configDB);
-        QString clientCert = socket->peerCertificate().toPem();
+        QString clientCert = QCryptographicHash::hash(socket->peerCertificate().toDer(), QCryptographicHash::Sha256).toHex().toLower();
         getUserKey.prepare(R"(
             SELECT Clients.User_Key, Client_Key, Client_Info, Client_Name, FullName
             FROM Clients
             JOIN Users
-              ON Client_Cert = ? AND Clients.User_Key = Users.User_Key; )");
+              ON Clients.User_Key = Users.User_Key
+            WHERE Client_Cert = ?; )");
         getUserKey.addBindValue(clientCert);
         if (getUserKey.exec() == false) {
             qInfo() << getUserKey.executedQuery();
@@ -1479,5 +1486,133 @@ void SSNFSWorker::ReadyToRead()
         working = false;
     }
         break;
+    }
+}
+
+qint64 SSNFSWorker::checkEmailPass(QSqlDatabase db, QString email, QString password) {
+    QSqlQuery getUser(db);
+    getUser.prepare(R"(
+                    SELECT `User_Key`, `Password_Hash`
+                    FROM `Users`
+                    WHERE `Email` = ?;)");
+    getUser.addBindValue(email);
+    if (getUser.exec()) {
+        if (getUser.next()) {
+            QString accountPass = getUser.value(1).toString();
+            QList<QString> passParts = accountPass.split('$');
+            if (accountPass == Common::GetPasswordHash(password, passParts[1], passParts[2].toInt())) {
+                return getUser.value(0).toLongLong();
+            }
+        }
+    } else {
+        Log::error(Log::Categories["Authentication"], "Error while getting user by email while authenticating login: {0}", ToChr(getUser.lastError().text()));
+    }
+
+    return -1;
+}
+
+void SSNFSWorker::handleRegistration() {
+    socket->write(Common::getBytes(Common::OK));
+    socket->waitForBytesWritten(-1);
+    socket->waitForReadyRead(-1);
+    qint32 clientEmailLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+    QByteArray clientEmail = Common::readExactBytes(socket, clientEmailLen);
+    qint32 clientPassLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+    QByteArray clientPass = Common::readExactBytes(socket, clientPassLen);
+
+    qint64 userKey = checkEmailPass(configDB, clientEmail, clientPass);
+
+    if (userKey <= -1) {
+        socket->write(Common::getBytes(Common::Error));
+        QByteArray errorMsg("Incorrect email or password specified.");
+        socket->write(Common::getBytes((qint32)errorMsg.length()));
+        socket->write(errorMsg);
+        return;
+    }
+
+    socket->write(Common::getBytes(Common::OK));
+    socket->waitForBytesWritten(-1);
+    socket->waitForReadyRead(-1);
+
+    qint32 clientNameLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+    QByteArray clientName = Common::readExactBytes(socket, clientNameLen);
+    qint32 clientSysInfoLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+    QByteArray clientSysInfo = Common::readExactBytes(socket, clientSysInfoLen);
+    qint32 clientCertLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+    QByteArray clientCert = Common::readExactBytes(socket, clientCertLen);
+
+    QSqlQuery CheckIfExisting(configDB);
+    CheckIfExisting.prepare("SELECT 1 FROM Clients WHERE User_Key = ? AND Client_Cert = ? AND Client_Info = ?;");
+    CheckIfExisting.addBindValue(userKey);
+    CheckIfExisting.addBindValue(QString(clientCert));
+    CheckIfExisting.addBindValue(QString(clientSysInfo));
+    if (CheckIfExisting.exec()) {
+        if (CheckIfExisting.next()) {
+            socket->write(Common::getBytes(Common::Error));
+            QByteArray errorMsg("You are already registered.");
+            socket->write(Common::getBytes((qint32)errorMsg.length()));
+            socket->write(errorMsg);
+            return;
+        }
+    } else {
+        Log::error(Log::Categories["Registration"], "An error occurred while verifying the submitted registration request: {0}", ToChr(CheckIfExisting.lastError().text()));
+        socket->write(Common::getBytes(Common::Error));
+        QByteArray errorMsg("An internal error has occured.");
+        socket->write(Common::getBytes((qint32)errorMsg.length()));
+        socket->write(errorMsg);
+        return;
+    }
+
+    QSqlQuery CheckIfSubmitted(configDB);
+    CheckIfSubmitted.prepare("SELECT 1 FROM Pending_Clients WHERE User_Key = ? AND Client_Cert = ? AND Client_Info = ?;");
+    CheckIfSubmitted.addBindValue(userKey);
+    CheckIfSubmitted.addBindValue(QString(clientCert));
+    CheckIfSubmitted.addBindValue(QString(clientSysInfo));
+    if (CheckIfSubmitted.exec()) {
+        if (CheckIfSubmitted.next()) {
+            socket->write(Common::getBytes(Common::Error));
+            QByteArray errorMsg("You have already submitted a request. It is currently awaiting approval.");
+            socket->write(Common::getBytes((qint32)errorMsg.length()));
+            socket->write(errorMsg);
+            return;
+        }
+    } else {
+        Log::error(Log::Categories["Registration"], "An error occurred while verifying the submitted registration request: {0}", ToChr(CheckIfSubmitted.lastError().text()));
+        socket->write(Common::getBytes(Common::Error));
+        QByteArray errorMsg("An internal error has occured.");
+        socket->write(Common::getBytes((qint32)errorMsg.length()));
+        socket->write(errorMsg);
+        return;
+    }
+
+    QSqlQuery DoInsert(configDB);
+    DoInsert.prepare(R"(
+        INSERT INTO Pending_Clients (User_Key, Client_Name, Client_Cert, Client_Info, Submit_Host)
+        VALUES (?, ?, ?, ?, ?);)");
+    DoInsert.addBindValue(userKey);
+    DoInsert.addBindValue(QString(clientName));
+    DoInsert.addBindValue(QString(clientCert));
+    DoInsert.addBindValue(QString(clientSysInfo));
+    DoInsert.addBindValue(socket->peerAddress().toString());
+    if (DoInsert.exec()) {
+        if (ServerSettings::get("UserCanApprove") == "true") {
+            socket->write(Common::getBytes(Common::OK));
+            QByteArray successMsg("This request has been successfully saved. Please visit the web panel to finalize it.");
+            socket->write(Common::getBytes((qint32)successMsg.length()));
+            socket->write(successMsg);
+        } else {
+            socket->write(Common::getBytes(Common::OK));
+            QByteArray successMsg("This request has been successfully saved. Please wait for your administrator to approve it..");
+            socket->write(Common::getBytes((qint32)successMsg.length()));
+            socket->write(successMsg);
+        }
+        Log::info(Log::Categories["Registration"], "A new registration request was submitted by {0} for computer name \"{1}\".", ToChr(socket->peerAddress().toString()), clientName.data());
+    } else {
+        Log::error(Log::Categories["Registration"], "An error occurred while saving the submitted registration request: {0}", ToChr(DoInsert.lastError().text()));
+        socket->write(Common::getBytes(Common::Error));
+        QByteArray errorMsg("An internal error has occured.");
+        socket->write(Common::getBytes((qint32)errorMsg.length()));
+        socket->write(errorMsg);
+        return;
     }
 }

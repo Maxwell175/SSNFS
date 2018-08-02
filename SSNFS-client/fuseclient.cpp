@@ -205,7 +205,6 @@ int FuseClient::fs_opt_proc(void *data, const char *arg, int key, fuse_args *out
 }
 
 void FuseClient::started() {
-    connect(&passwdWatcher, SIGNAL(fileChanged(QString)), this, SLOT(syncLocalUsers()), Qt::QueuedConnection);
 
     struct fuse_operations fs_oper = {};
 
@@ -269,6 +268,7 @@ void FuseClient::started() {
 
     // Make sure initial connection works.
     if (initSocket() != 0) {
+        qInfo() << "Could not establish a connection to the server:" << socket->errorString();
         exit(1);
     }
 
@@ -317,8 +317,8 @@ int FuseClient::initSocket()
 
         socket->setCaCertificates(QSslSocket::systemCaCertificates());
         socket->setPeerVerifyMode(QSslSocket::VerifyNone);
-        socket->setPrivateKey("/home/maxwell/Coding/SSNFS/SSNFS-client/key.pem");
-        socket->setLocalCertificate("/home/maxwell/Coding/SSNFS/SSNFS-client/cert.pem");
+        socket->setPrivateKey(_CONFIG_DIR "/key.pem");
+        socket->setLocalCertificate(_CONFIG_DIR "/cert.pem");
 
         socket->connectToHostEncrypted(host, port);
 

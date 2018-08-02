@@ -49,10 +49,6 @@ webpanel.path = $$PREFIX/etc/webpanel
 webpanel.files = webpanel/*
 INSTALLS += webpanel
 
-configdb.path = $$PREFIX/etc
-configdb.files = config.db
-INSTALLS += configdb
-
 DEFINES += _SERVER_VERSION=0.1
 DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc\\\"\""
 

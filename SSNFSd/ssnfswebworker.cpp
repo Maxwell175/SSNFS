@@ -116,44 +116,28 @@ static int PH7MakeAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
         int strClientPasswdLen;
         const char *strClientPasswd = ph7_value_to_string(argv[1], &strClientPasswdLen);
 
-        QSqlQuery getUser(worker->configDB);
-        getUser.prepare(R"(
-            SELECT `User_Key`, `Password_Hash`
-            FROM `Users`
-            WHERE `Email` = ?;)");
-        getUser.addBindValue(QString(strEmail));
-        if (getUser.exec()) {
-            if (getUser.next()) {
-                QString accountPass = getUser.value(1).toString();
-                QList<QString> passParts = accountPass.split('$');
-                if (accountPass == Common::GetPasswordHash(QString(strClientPasswd), passParts[1], passParts[2].toInt())) {
-                    while (true) {
-                        QString newCookie = QUuid::createUuid().toString();
-                        QSqlQuery addCookie(worker->configDB);
-                        addCookie.prepare("INSERT OR IGNORE INTO `Web_Tokens`(`User_Key`,`Token`) VALUES (?,?);");
-                        addCookie.addBindValue(getUser.value(0).toLongLong());
-                        addCookie.addBindValue(newCookie);
-                        if (addCookie.exec()) {
-                            if (addCookie.numRowsAffected() != 0) {
-                                QByteArray newCookieBytes = newCookie.toUtf8();
-                                ph7_result_string(pCtx, newCookieBytes.data(), newCookieBytes.length());
-                                break;
-                            }
-                        } else {
-                            Log::error(Log::Categories["Web Server"], "Error while adding a new auth cookie: {0}", ToChr(addCookie.lastError().text()));
-                            ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while generating an auth cookie.");
-                            break;
-                        }
+        qint64 userKey = SSNFSWorker::checkEmailPass(worker->configDB, QString(strEmail), QString(strClientPasswd));
+        if (userKey > -1) {
+            while (true) {
+                QString newCookie = QUuid::createUuid().toString();
+                QSqlQuery addCookie(worker->configDB);
+                addCookie.prepare("INSERT OR IGNORE INTO `Web_Tokens`(`User_Key`,`Token`) VALUES (?,?);");
+                addCookie.addBindValue(userKey);
+                addCookie.addBindValue(newCookie);
+                if (addCookie.exec()) {
+                    if (addCookie.numRowsAffected() != 0) {
+                        QByteArray newCookieBytes = newCookie.toUtf8();
+                        ph7_result_string(pCtx, newCookieBytes.data(), newCookieBytes.length());
+                        break;
                     }
                 } else {
-                    ph7_result_string(pCtx, "", 0);
+                    Log::error(Log::Categories["Web Server"], "Error while adding a new auth cookie: {0}", ToChr(addCookie.lastError().text()));
+                    ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while generating an auth cookie.");
+                    break;
                 }
-            } else {
-                ph7_result_string(pCtx, "", 0);
             }
         } else {
-            Log::error(Log::Categories["Web Server"], "Error while getting user by email while authenticating login: {0}", ToChr(getUser.lastError().text()));
-            ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while verifying the login credentials.");
+            ph7_result_string(pCtx, "", 0);
         }
     } else {
         ph7_context_throw_error(pCtx, PH7_CTX_ERR, "An invalid number or type of argument(s) was specified.");
@@ -360,29 +344,29 @@ void SSNFSWorker::processHttpRequest(char firstChar)
          * so that we can consume and redirect the VM output to STDOUT.
          */
         rc = ph7_vm_config(pVm,
-            PH7_VM_CONFIG_OUTPUT,
-            PH7Consumer,
-            this /* Callback private data */
-            );
+                           PH7_VM_CONFIG_OUTPUT,
+                           PH7Consumer,
+                           this /* Callback private data */
+                           );
         if( rc != PH7_OK ){
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while installing the VM output consumer callback");
             return;
         }
         rc = ph7_vm_config(pVm,
-            PH7_VM_CONFIG_ERR_LOG_HANDLER,
-            PH7ErrorLogger
-            );
+                           PH7_VM_CONFIG_ERR_LOG_HANDLER,
+                           PH7ErrorLogger
+                           );
         if( rc != PH7_OK ){
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while installing the VM output consumer callback");
             return;
         }
         rc = ph7_vm_config(pVm,
-            PH7_VM_CONFIG_HTTP_REQUEST,
-            Request.data(),
-            Request.length()
-            );
+                           PH7_VM_CONFIG_HTTP_REQUEST,
+                           Request.data(),
+                           Request.length()
+                           );
         if( rc != PH7_OK ) {
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while transferring the HTTP request to PH7.");

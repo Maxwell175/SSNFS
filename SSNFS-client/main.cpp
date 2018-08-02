@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <stdio.h>
 #include <fuseclient.h>
+#include <registeriface.h>
 
 int main(int argc, char *argv[])
 {
@@ -16,10 +17,25 @@ int main(int argc, char *argv[])
 
     QCoreApplication app(argc, argv);
 
-    qRegisterMetaType<fuse_conn_info*>("fuse_conn_info*");
-    qRegisterMetaType<fs_stat*>("fs_stat*");
+    if (app.arguments().length() >= 2 && ((QString)app.arguments().at(1)).toLower() == "register") {
+        if (app.arguments().length() == 2) {
+            qInfo() << "Please specify the server you would like to register to.";
+            exit(1);
+        }
+        if (((QString)app.arguments().at(2)).count(QLatin1Char(':') > 1)) {
+            qInfo() << "Invalid server specified.";
+            exit(1);
+        }
 
-    FuseClient client;
+        RegisterIface regIface;
 
-    return app.exec();
+        return 0;
+    } else {
+        qRegisterMetaType<fuse_conn_info*>("fuse_conn_info*");
+        qRegisterMetaType<fs_stat*>("fs_stat*");
+
+        FuseClient client;
+
+        return app.exec();
+    }
 }

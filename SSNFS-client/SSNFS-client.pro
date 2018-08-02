@@ -30,14 +30,16 @@ TEMPLATE = app
 include(../Common/Common.pri)
 
 SOURCES += main.cpp \
-    fuseclient.cpp
+    fuseclient.cpp \
+    registeriface.cpp
 
 HEADERS += \
-    fuseclient.h
+    fuseclient.h \
+    registeriface.h
 
+DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc\\\"\""
+DEFINES += _FILE_OFFSET_BITS=64
+DEFINES += _XOPEN_SOURCE=700
+DEFINES += FUSE_USE_VERSION=31
 
-QMAKE_CXXFLAGS += -D_FILE_OFFSET_BITS=64
-QMAKE_CXXFLAGS += -D_XOPEN_SOURCE=700
-QMAKE_CXXFLAGS += -DFUSE_USE_VERSION=31
-
-QMAKE_CXXFLAGS += -D_CLIENT_VERSION=0.1
+DEFINES += _CLIENT_VERSION=0.1
