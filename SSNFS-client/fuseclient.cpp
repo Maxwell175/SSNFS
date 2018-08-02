@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <errno.h>
+#include <string.h>
 
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
@@ -241,7 +242,10 @@ void FuseClient::started() {
 
     char *argv[qApp->arguments().length()];
     for (int i = 0; i < qApp->arguments().length(); i++) {
-        argv[i] = ((QString)qApp->arguments().at(i)).toUtf8().data();
+        QString arg = qApp->arguments().at(i);
+        argv[i] = new char[arg.length() + 1];
+        strcpy(argv[i], arg.toUtf8().constData());
+        argv[i][arg.length()] = '\0';
     }
 
     struct fuse_args args = FUSE_ARGS_INIT(qApp->arguments().length(), argv);
