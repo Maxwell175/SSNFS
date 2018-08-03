@@ -75,6 +75,8 @@ SSNFSWorker::SSNFSWorker(int socketDescriptor, QObject *parent)
     knownResultCodes.insert(511, "Network Authentication Required");
 
     configDB = QSqlDatabase::cloneDatabase(getConfDB(), tr("SSNFSWorker(%1, %2)").arg(socketDescriptor).arg(QUuid::createUuid().toString()));
+
+    connect(this, SIGNAL(finished()), this, SLOT(deleteLater()));
 }
 
 void SSNFSWorker::run()
@@ -135,8 +137,7 @@ void SSNFSWorker::run()
         }
     }
 
-    //deleteLater();
-    this->quit();
+    quit();
 }
 
 QString SSNFSWorker::getPerms(QString path, qint32 uid) {
@@ -357,7 +358,6 @@ void SSNFSWorker::ReadyToRead()
         if (currOperation == Common::InvalidOperation) {
             qDebug() << "Error! Invalid operation from client.";
             socket->close();
-            deleteLater();
             return;
         }
 
