@@ -19,9 +19,12 @@
 #include <QList>
 #include <QHostInfo>
 #include <QThread>
-#include <unistd.h>
 #include <openssl/rand.h>
 #include <openssl/crypto.h>
+#include <termios.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <iostream>
 #include <QStringList>
 
 #include <fastpbkdf2.h>
@@ -354,6 +357,49 @@ inline QString GetPasswordHash(QString password, QString salt = QString(), int i
     finalResult.append(QString::number(iterations));
 
     return finalResult;
+}
+
+
+inline int getch() {
+    int ch;
+    struct termios t_old, t_new;
+
+    tcgetattr(STDIN_FILENO, &t_old);
+    t_new = t_old;
+    t_new.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &t_new);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &t_old);
+    return ch;
+}
+inline QString SecurePassInput(bool showPlaceholder = true, char placeholder = ' ')
+{
+    const char BACKSPACE = '\b';
+    const char RETURN = '\n';    
+    const char DEL = 127; // Sometimes sent instead of backspace.
+
+    QString password;
+    unsigned char ch = 0;
+
+    while ((ch=getch()) != RETURN) {
+        if (ch == BACKSPACE || ch == DEL) {
+            if (password.length() != 0) {
+                if (showPlaceholder)
+                    std::cout << "\b \b";
+                password.resize(password.length() - 1);
+            }
+        } else if (ch == 27) { // If this is the escape char,
+            getch(); getch(); // the next 2 will be control chars. Ignore them.
+        } else if (QChar(ch).isPrint()) {
+            password += ch;
+            if(showPlaceholder)
+                std::cout << placeholder;
+        }
+    }
+    std::cout << std::endl;
+    return password;
 }
 }
 
