@@ -1,6 +1,0 @@
-#!/bin/sh
-
-sqlite3 SSNFSd/config.db .dump > SSNFSd/config.sql
-touch .commit
-
-exit

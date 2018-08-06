@@ -67,16 +67,17 @@ public:
     LogOutput() {}
     LogOutput(QString nme, QUrl output, QDateTime updateTmStmp, QString updatedByUser) {
         name = nme;
-        if (output.scheme() == "file") {
+        path = output;
+        if (path.scheme() == "file") {
             type = OutputFile;
             logger = spdlog::basic_logger_mt(name.toStdString(), path.path().toStdString());
-        } else if (output.scheme() == "syslog") {
+        } else if (path.scheme() == "syslog") {
             type = OutputSyslog;
             logger = spdlog::syslog_logger(name.toStdString(), path.path().toStdString());
-        } else if (output.scheme() == "stdout") {
+        } else if (path.scheme() == "stdout") {
             type = OutputStdOut;
             logger = spdlog::stdout_logger_mt(name.toStdString());
-        } else if (output.scheme() == "stderr") {
+        } else if (path.scheme() == "stderr") {
             type = OutputStdErr;
             logger = spdlog::stderr_logger_mt(name.toStdString());
         } else {
@@ -91,6 +92,7 @@ class Log
 {
 public:
 
+    // Set in main.cpp.
     static QHash<QString, LogCategory> Categories;
     static QVector<LogOutput> Outputs;
 
@@ -98,17 +100,9 @@ public:
 
     static inline void init() {
         if (isInit) {
-            qWarning("Log init is called more than once.");
+            qDebug("Log init is called more than once.");
             return;
         }
-
-        // Categories must be added here.
-        Categories.insert("Connection", LogCategory("Connection", "Messages related to client connections."));
-        Categories.insert("Authentication", LogCategory("Authentication", "Messages generated during client authentication."));
-        Categories.insert("File System", LogCategory("File System", "Various technical messages generated while processing requests."));
-        Categories.insert("Core", LogCategory("Core", "Messages related to the server status including configuration changes."));
-        Categories.insert("Web Server", LogCategory("Web Server", "Messages related to the web server."));
-        Categories.insert("Registration", LogCategory("Registration", "Messages related to the registration of new users and computers."));
 
         QSqlDatabase configDB = getConfDB();
         if (!configDB.isValid()) {

@@ -155,7 +155,7 @@ RegisterIface::RegisterIface(QObject *parent) : QObject(parent)
         BIO *certwriter = NULL;
         EVP_PKEY * pkey = NULL;
 
-        int bits = 2048;
+        int bits = 4096;
         unsigned long e = RSA_F4;
 
         // Generate RSA key.
@@ -198,7 +198,7 @@ RegisterIface::RegisterIface(QObject *parent) : QObject(parent)
         X509_set_issuer_name(x509, name);
 
         // Sign it.
-        X509_sign(x509, pkey, EVP_sha1());
+        X509_sign(x509, pkey, EVP_sha256());
 
         // Write cert to file.
         certwriter = BIO_new_file(_CONFIG_DIR "/cert.pem", "w");

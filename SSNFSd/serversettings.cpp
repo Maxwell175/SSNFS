@@ -41,7 +41,7 @@ const QString ServerSettings::set(QString key, QString value, QString updtUser) 
     if (!confDB.isValid()) {
         return QString();
     }
-    QSqlQuery query("UPDATE `Settings` SET `Setting_Value` = ?, `Updt_TmStmp` = CURRENT_TIMESTAMP, `Updt_User` = ? WHERE `Setting_Key = ?", confDB);
+    QSqlQuery query("UPDATE `Settings` SET `Setting_Value` = ?, `Updt_TmStmp` = CURRENT_TIMESTAMP, `Updt_User` = ? WHERE `Setting_Key` = ?;", confDB);
     query.addBindValue(value);
     query.addBindValue(updtUser);
     query.addBindValue(key);

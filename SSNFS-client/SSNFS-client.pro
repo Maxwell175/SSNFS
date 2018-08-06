@@ -37,7 +37,7 @@ HEADERS += \
     fuseclient.h \
     registeriface.h
 
-DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc\\\"\""
+DEFINES += "_CONFIG_DIR=\"\\\"$$PREFIX/etc/SSNFS\\\"\""
 DEFINES += _FILE_OFFSET_BITS=64
 DEFINES += _XOPEN_SOURCE=700
 DEFINES += FUSE_USE_VERSION=31

@@ -14,8 +14,17 @@
 #include <log.h>
 #include <serversettings.h>
 #include <ssnfsserver.h>
+#include <initiface.h>
 
-QHash<QString, LogCategory> Log::Categories;
+// New log categories must be added here.
+QHash<QString, LogCategory> Log::Categories = QHash<QString, LogCategory>{
+    { "Connection", LogCategory("Connection", "Messages related to client connections.") },
+    { "Authentication", LogCategory("Authentication", "Messages generated during client authentication.") },
+    { "File System", LogCategory("File System", "Various technical messages generated while processing requests.") },
+    { "Core", LogCategory("Core", "Messages related to the server status including configuration changes.") },
+    { "Web Server", LogCategory("Web Server", "Messages related to the web server.") },
+    { "Registration", LogCategory("Registration", "Messages related to the registration of new users and computers.") }
+};
 QVector<LogOutput> Log::Outputs;
 bool Log::isInit = false;
 QHash<QString, SettingInfo> ServerSettings::m_settings;
@@ -26,14 +35,11 @@ int main(int argc, char *argv[])
 
     qSetMessagePattern("%{file}:%{line} - %{message}");
 
-    if (ServerSettings::reloadSettings() == false) {
-        qCritical() << "Can't load settings! Exiting.";
-        exit(1);
-    }
-
     if (app.arguments().contains("-h", Qt::CaseInsensitive) || app.arguments().contains("--help", Qt::CaseInsensitive)) {
         qInfo() << QFileInfo(app.applicationFilePath()).fileName() << "[OPTIONS]";
         qInfo() << "    --help, -h                  Show this help text.";
+        qInfo() << "    --init                      Starts an interactive initialization procedure.";
+        qInfo() << "    ";
         qInfo() << "    --set-pkey-file=<path>      Set server private key to the specified file.";
         qInfo() << "    --set-cert-file=<path>      Set server certificate to the specified file.";
         qInfo() << "    --hash-password-salt=<salt> When manually hasing a password (below) use this salt.";
@@ -45,7 +51,11 @@ int main(int argc, char *argv[])
     bool willExit = false;
     QString manualSalt;
     foreach (QString arg, app.arguments()) {
-        if (arg.startsWith("--set-pkey-file", Qt::CaseInsensitive)) {
+        if (arg.startsWith("--init", Qt::CaseInsensitive)) {
+            InitIface init;
+
+            return 0;
+        } else if (arg.startsWith("--set-pkey-file", Qt::CaseInsensitive)) {
             int equPos;
             if ((equPos = arg.indexOf('=')) == -1) {
                 qInfo() << "Invalid parameter:" << arg;
@@ -120,6 +130,11 @@ int main(int argc, char *argv[])
 
 
     qInfo() << "Starting SSNFSd" << _SERVER_VERSION << "at" << QDateTime::currentDateTime().toString();
+
+    if (ServerSettings::reloadSettings() == false) {
+        qCritical() << "Can't load settings! Exiting.";
+        exit(1);
+    }
 
     Log::init();
 

@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/defaults">
+        <file>config.sql</file>
+    </qresource>
+</RCC>
