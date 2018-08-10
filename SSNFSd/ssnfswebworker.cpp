@@ -76,15 +76,23 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
 
         QSqlQuery getUserKey(worker->configDB);
         getUserKey.prepare(R"(
-            SELECT `User_Key`
-            FROM `Web_Tokens`
-            WHERE `Token` = ? AND ((julianday('now') - julianday(LastAccess_TmStmp)) * 24 * 60) < 30;)");
+            SELECT t.`User_Key`, rp.`Perm_ShortName`
+            FROM `Web_Tokens` t
+            LEFT JOIN `User_Roles` ur
+            ON `Token` = ? AND ((julianday('now') - julianday(LastAccess_TmStmp)) * 24 * 60) < 30 AND t.`User_Key` = ur.`User_Key`
+            LEFT JOIN `Server_Role_Perms` rp
+            ON ur.`Role_Key` = rp.`Role_Key;)");
         getUserKey.addBindValue(cookie);
         if (getUserKey.exec()) {
             if (getUserKey.next()) {
                 worker->userKey = getUserKey.value(0).toLongLong();
 
                 ph7_result_bool(pCtx, true);
+
+                do {
+                    if (getUserKey.isNull(1) == false)
+                        worker->userPerms.append(getUserKey.value(1).toString());
+                } while (getUserKey.next());
 
                 QSqlQuery updateTokenTmStmp(worker->configDB);
                 updateTokenTmStmp.prepare(R"(
@@ -181,6 +189,8 @@ static int PH7GetConnected(ph7_context *pCtx,int argc,ph7_value **argv) {
     foreach (const QObject *currChild, worker->parent()->children()) {
         if (currChild->objectName() == "Connected") {
             SSNFSWorker *currWorker = (SSNFSWorker*)currChild;
+            if (worker->userPerms.contains("connected") == false && currWorker->userKey != worker->userKey)
+                continue;
             qInfo() << currWorker->clientName;
             qInfo() << currWorker->userName;
             ph7_value *clientInfo = ph7_context_new_array(pCtx);

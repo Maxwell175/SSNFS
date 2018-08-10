@@ -1,12 +1,12 @@
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE IF NOT EXISTS "Settings" (
-	`Setting_Key`	TEXT NOT NULL UNIQUE,
-	`Setting_Value`	TEXT NOT NULL,
-	`Setting_Desc`	TEXT NOT NULL,
-	`Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`Updt_User`	TEXT NOT NULL,
-	PRIMARY KEY(`Setting_Key`)
+        `Setting_Key`	TEXT NOT NULL UNIQUE,
+        `Setting_Value`	TEXT NOT NULL,
+        `Setting_Desc`	TEXT NOT NULL,
+        `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `Updt_User`	TEXT NOT NULL,
+        PRIMARY KEY(`Setting_Key`)
 );
 INSERT OR IGNORE INTO Settings VALUES('PrivateKeySource','file','Where is the private key?',CURRENT_TIMESTAMP,'Default');
 INSERT OR IGNORE INTO Settings VALUES('PrivateKeyFilePath','','If the private key is a file, this is the path to the file.',CURRENT_TIMESTAMP,'Default');
@@ -16,40 +16,40 @@ INSERT OR IGNORE INTO Settings VALUES('NewFileMode','777','The mode used to stor
 INSERT OR IGNORE INTO Settings VALUES('WebPanelPath','','Path to the directory containing the web administration files. Before loading each file, it goes through a PHP parser.',CURRENT_TIMESTAMP,'Default');
 INSERT OR IGNORE INTO Settings VALUES('UserCanApprove','true','Can a user approve clients without administrator involvement?',CURRENT_TIMESTAMP,'Default');
 CREATE TABLE IF NOT EXISTS "Shares" (
-	`Share_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-	`Share_Name`	TEXT NOT NULL UNIQUE,
-	`Local_Path`	TEXT NOT NULL,
-	`Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`Updt_User`	TEXT NOT NULL
+        `Share_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+        `Share_Name`	TEXT NOT NULL UNIQUE,
+        `Local_Path`	TEXT NOT NULL,
+        `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `Updt_User`	TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS "Logs" (
-	`Log_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-	`Log_Name`	TEXT NOT NULL UNIQUE,
-	`Log_Path`	TEXT NOT NULL UNIQUE,
-	`Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`Updt_User`	TEXT NOT NULL
+        `Log_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+        `Log_Name`	TEXT NOT NULL UNIQUE,
+        `Log_Path`	TEXT NOT NULL UNIQUE,
+        `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `Updt_User`	TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS "Logs_Log_Categories" (
-	`Log_Key`	INTEGER NOT NULL,
-	`Log_Category`	TEXT NOT NULL,
-	`Log_Levels`	TEXT NOT NULL,
-	FOREIGN KEY(`Log_Key`) REFERENCES `Logs`(`Log_Key`)
+        `Log_Key`	INTEGER NOT NULL,
+        `Log_Category`	TEXT NOT NULL,
+        `Log_Levels`	TEXT NOT NULL,
+        FOREIGN KEY(`Log_Key`) REFERENCES `Logs`(`Log_Key`)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS `UQ_Logs_Log_Categories` ON `Logs_Log_Categories` (
         `Log_Key`,
         `Log_Category`
 );
 CREATE TABLE IF NOT EXISTS "Server_Roles" (
-	`Role_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-	`Role_Name`	TEXT NOT NULL UNIQUE
+        `Role_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+        `Role_Name`	TEXT NOT NULL UNIQUE
 );
-INSERT OR IGNORE INTO Server_Roles VALUES(1,'User');
-INSERT OR IGNORE INTO Server_Roles VALUES(2,'Administrator');
+INSERT OR IGNORE INTO Server_Roles(`Role_Name`) VALUES('User');
+INSERT OR IGNORE INTO Server_Roles(`Role_Name`) VALUES('Administrator');
 CREATE TABLE IF NOT EXISTS "Server_Perms" (
-	`Perm_ShortName`	TEXT NOT NULL UNIQUE,
-	`Perm_Name`	TEXT NOT NULL UNIQUE,
-	`Perm_Desc`	TEXT NOT NULL UNIQUE,
-	PRIMARY KEY(`Perm_ShortName`)
+        `Perm_ShortName`	TEXT NOT NULL UNIQUE,
+        `Perm_Name`	TEXT NOT NULL UNIQUE,
+        `Perm_Desc`	TEXT NOT NULL UNIQUE,
+        PRIMARY KEY(`Perm_ShortName`)
 );
 INSERT OR IGNORE INTO Server_Perms VALUES('settings','Global Settings','View and change server settings.');
 INSERT OR IGNORE INTO Server_Perms VALUES('shares','Shares','View and change the settings of all shares.');
@@ -71,18 +71,23 @@ INSERT OR IGNORE INTO Server_Role_Perms
 SELECT Role_Key, 'computers' as Perm_ShortName
 FROM `Server_Roles`
 WHERE Role_Name = 'Administrator';
+INSERT OR IGNORE INTO Server_Role_Perms
 SELECT Role_Key, 'shares' as Perm_ShortName
 FROM `Server_Roles`
 WHERE Role_Name = 'Administrator';
+INSERT OR IGNORE INTO Server_Role_Perms
 SELECT Role_Key, 'settings' as Perm_ShortName
 FROM `Server_Roles`
 WHERE Role_Name = 'Administrator';
+INSERT OR IGNORE INTO Server_Role_Perms
 SELECT Role_Key, 'connected' as Perm_ShortName
 FROM `Server_Roles`
 WHERE Role_Name = 'Administrator';
+INSERT OR IGNORE INTO Server_Role_Perms
 SELECT Role_Key, 'users' as Perm_ShortName
 FROM `Server_Roles`
 WHERE Role_Name = 'Administrator';
+INSERT OR IGNORE INTO Server_Role_Perms
 SELECT Role_Key, 'logs' as Perm_ShortName
 FROM `Server_Roles`
 WHERE Role_Name = 'Administrator';
@@ -91,31 +96,43 @@ CREATE TABLE IF NOT EXISTS "Users" (
         `FullName`	TEXT,
         `Email`	TEXT NOT NULL UNIQUE,
         `Password_Hash`	TEXT NOT NULL,
-        `Role_Key`	INTEGER,
         `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        `Crtd_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(`Role_Key`) REFERENCES `Server_Roles`(`Role_Key`)
+        `Crtd_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "User_Roles" (
+        `User_Key`  INTEGER NOT NULL,
+        `Role_Key`  INTEGER NOT NULL,
+        FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY(`Role_Key`) REFERENCES `Server_Roles`(`Role_Key`) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS `UQ_User_Roles` ON `User_Roles` (
+        `User_Key`,
+        `Role_Key`
 );
 CREATE TABLE IF NOT EXISTS "User_Shares" (
-	`User_Share_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-	`User_Key`	INTEGER NOT NULL,
-	`Share_Key`	INTEGER NOT NULL,
-	`Default_Perms`	TEXT NOT NULL,
-	`Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`Updt_User`	TEXT NOT NULL,
-	FOREIGN KEY(`Share_Key`) REFERENCES `Shares`(`Share_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
-	FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`) ON DELETE CASCADE ON UPDATE CASCADE
+        `User_Share_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+        `User_Key`	INTEGER NOT NULL,
+        `Share_Key`	INTEGER NOT NULL,
+        `Default_Perms`	TEXT NOT NULL,
+        `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `Updt_User`	TEXT NOT NULL,
+        FOREIGN KEY(`Share_Key`) REFERENCES `Shares`(`Share_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS `UQ_User_Shares` ON `User_Shares` (
+        `User_Key`,
+        `Share_Key`
 );
 CREATE TABLE IF NOT EXISTS "User_Share_Perms" (
-	`Share_Key`	INTEGER NOT NULL,
-	`User_Key`	INTEGER NOT NULL,
-	`Client_User_Key`	INTEGER,
-	`Path`	TEXT NOT NULL,
-	`Perms`	TEXT NOT NULL,
-	UNIQUE(`Share_Key`,`User_Key`,`Client_User_Key`,`Path`),
-	FOREIGN KEY(`Share_Key`) REFERENCES `Shares`(`Share_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
-	FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
-	FOREIGN KEY(`Client_User_Key`) REFERENCES `Client_Users`(`Client_User_Key`) ON DELETE CASCADE ON UPDATE CASCADE
+        `Share_Key`	INTEGER NOT NULL,
+        `User_Key`	INTEGER NOT NULL,
+        `Client_User_Key`	INTEGER,
+        `Path`	TEXT NOT NULL,
+        `Perms`	TEXT NOT NULL,
+        UNIQUE(`Share_Key`,`User_Key`,`Client_User_Key`,`Path`),
+        FOREIGN KEY(`Share_Key`) REFERENCES `Shares`(`Share_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`) ON DELETE CASCADE ON UPDATE CASCADE,
+        FOREIGN KEY(`Client_User_Key`) REFERENCES `Client_Users`(`Client_User_Key`) ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS `UQ_Perms` ON `User_Share_Perms` (
         `Share_Key`,
@@ -124,14 +141,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS `UQ_Perms` ON `User_Share_Perms` (
         `Path`
 );
 CREATE TABLE IF NOT EXISTS "Clients" (
-	`User_Key`	INTEGER NOT NULL,
-	`Client_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-	`Client_Name`	TEXT NOT NULL,
-	`Client_Cert`	TEXT NOT NULL,
-	`Client_Info`	TEXT NOT NULL,
-	`Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`Updt_User`	TEXT NOT NULL,
-	FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`)
+        `Client_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+        `User_Key`	INTEGER NOT NULL,
+        `Client_Name`	TEXT NOT NULL,
+        `Client_Cert`	TEXT NOT NULL,
+        `Client_Info`	TEXT NOT NULL,
+        `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `Updt_User`	TEXT NOT NULL,
+        FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS `UQ_Clients` ON `Clients` (
         `User_Key`,
@@ -142,13 +159,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS `UQ_Client_Name_User` ON `Clients` (
         `Client_Name`
 );
 CREATE TABLE IF NOT EXISTS "Pending_Clients" (
-	`User_Key`	INTEGER NOT NULL,
-	`Client_Name`	TEXT NOT NULL,
-	`Client_Cert`	TEXT NOT NULL,
-	`Client_Info`	TEXT NOT NULL,
-	`Submit_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`Submit_Host`	TEXT NOT NULL,
-	FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`)
+        `Pending_Client_Key`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+        `User_Key`	INTEGER NOT NULL,
+        `Client_Name`	TEXT NOT NULL,
+        `Client_Cert`	TEXT NOT NULL,
+        `Client_Info`	TEXT NOT NULL,
+        `Submit_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `Submit_Host`	TEXT NOT NULL,
+        FOREIGN KEY(`User_Key`) REFERENCES `Users`(`User_Key`)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS `UQ_Pending_Clients` ON `Pending_Clients` (
         `User_Key`,

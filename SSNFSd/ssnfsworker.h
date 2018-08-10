@@ -65,6 +65,7 @@ public:
     QHash<QString, QString> responseHeaders;
     quint16 httpResultCode = 200;
     QHash<quint16, QString> knownResultCodes;
+    QVector<QString> userPerms;
 
     void handleRegistration();
 
