@@ -437,15 +437,22 @@ free_all:
 
     QSqlQuery addUser(configDB);
     addUser.prepare(R"(
-        INSERT OR REPLACE INTO `Users`(FullName, Email, Password_Hash, Role_Key)
-        SELECT ? as FullName, ? as Email, ? as Password_Hash, Role_Key
-        FROM `Server_Roles`
-        WHERE Role_Name = 'Administrator';)");
+        INSERT OR REPLACE INTO `Users`(FullName, Email, Password_Hash)
+        VALUES (?, ?, ?);)");
     addUser.addBindValue(adminName);
     addUser.addBindValue(adminEmail);
     addUser.addBindValue(adminEncPass);
     if (addUser.exec() == false) {
         ConsoleOut << "Failed to add a new user: " << addUser.lastError().text() << endl;
+    }
+    QSqlQuery addRole(configDB);
+    addRole.prepare(R"(
+        INSERT OR REPLACE INTO `User_Roles`(User_Key, Role_Key)
+        SELECT (SELECT seq FROM sqlite_sequence WHERE name = 'Users'), Role_Key
+        FROM `Server_Roles`
+        WHERE Role_Name = 'Administrator';)");
+    if (addRole.exec() == false) {
+        ConsoleOut << "Failed to add role user: " << addUser.lastError().text() << endl;
     }
 
     ConsoleOut << endl << "Your SSNFS server is now ready for use.";
