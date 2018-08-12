@@ -81,7 +81,7 @@ static int PH7CheckAuthCookie(ph7_context *pCtx,int argc,ph7_value **argv) {
             LEFT JOIN `User_Roles` ur
             ON `Token` = ? AND ((julianday('now') - julianday(LastAccess_TmStmp)) * 24 * 60) < 30 AND t.`User_Key` = ur.`User_Key`
             LEFT JOIN `Server_Role_Perms` rp
-            ON ur.`Role_Key` = rp.`Role_Key;)");
+            ON ur.`Role_Key` = rp.`Role_Key`;)");
         getUserKey.addBindValue(cookie);
         if (getUserKey.exec()) {
             if (getUserKey.next()) {
@@ -211,6 +211,171 @@ static int PH7GetConnected(ph7_context *pCtx,int argc,ph7_value **argv) {
     return PH7_OK;
 }
 
+static int PH7GetPending(ph7_context *pCtx,int argc,ph7_value **argv) {
+    (void) argc;
+    (void) argv;
+
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+
+    ph7_value *pending = ph7_context_new_array(pCtx);
+    QSqlQuery getPending(worker->configDB);
+    if (worker->userPerms.contains("computers")) {
+        getPending.prepare(R"(
+            SELECT `Pending_Client_Key`,
+                   u.`FullName`,
+                   `Client_Name`,
+                   CAST(strftime('%s',`Submit_TmStmp`) AS INTEGER),
+                   `Submit_Host`
+            FROM `Pending_Clients` c
+            JOIN `Users` u
+            ON c.`User_Key` = u.`User_Key`;)");
+    } else {
+        getPending.prepare(R"(
+            SELECT `Pending_Client_Key`,
+                   u.`FullName`,
+                   `Client_Name`,
+                   CAST(strftime('%s',`Submit_TmStmp`) AS INTEGER),
+                   `Submit_Host`
+            FROM `Pending_Clients` c
+            JOIN `Users` u
+            ON c.`User_Key` = ? AND c.`User_Key` = u.`User_Key`;)");
+        getPending.addBindValue(worker->userKey);
+    }
+    if (getPending.exec()) {
+        while (getPending.next()) {
+            ph7_value *clientInfo = ph7_context_new_array(pCtx);
+            ph7_value *pendingClientKeyVal = ph7_context_new_scalar(pCtx);
+            ph7_value_int64(pendingClientKeyVal, getPending.value(0).toLongLong());
+            ph7_array_add_strkey_elem(clientInfo, "pendingClientKey", pendingClientKeyVal);
+            ph7_value *userNameVal = ph7_context_new_scalar(pCtx);
+            ph7_value_string(userNameVal, ToChr(getPending.value(1).toString()), -1);
+            ph7_array_add_strkey_elem(clientInfo, "userName", userNameVal);
+            ph7_value *clientNameVal = ph7_context_new_scalar(pCtx);
+            ph7_value_string(clientNameVal, ToChr(getPending.value(2).toString()), -1);
+            ph7_array_add_strkey_elem(clientInfo, "clientName", clientNameVal);
+            ph7_value *submitTmStmpVal = ph7_context_new_scalar(pCtx);
+            ph7_value_int64(submitTmStmpVal, getPending.value(3).toLongLong());
+            ph7_array_add_strkey_elem(clientInfo, "submitTmStmp", submitTmStmpVal);
+            ph7_value *submitHostVal = ph7_context_new_scalar(pCtx);
+            ph7_value_string(submitHostVal, ToChr(getPending.value(4).toString()), -1);
+            ph7_array_add_strkey_elem(clientInfo, "submitHost", submitHostVal);
+            ph7_array_add_elem(pending, NULL, clientInfo);
+        }
+    } else {
+        Log::error(Log::Categories["Web Server"], "Error while getting pending computers: {0}", ToChr(getPending.lastError().text()));
+        ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while getting pending computers.");
+    }
+
+    ph7_result_value(pCtx, pending);
+
+    return PH7_OK;
+}
+
+static int PH7ApprovePending(ph7_context *pCtx,int argc,ph7_value **argv) {
+    SSNFSWorker *worker = (SSNFSWorker*)ph7_context_user_data(pCtx);
+
+    if (argc < 1 || argc > 2 || ph7_value_is_numeric(argv[0]) == false || (argc == 2 && ph7_value_is_string(argv[1]) == false)) {
+        ph7_context_throw_error(pCtx, PH7_CTX_ERR, "An invalid number of argument(s) was specified.");
+    } else {
+        qint64 pendingClientKey = ph7_value_to_int64(argv[0]);
+        QSqlQuery approvePend(worker->configDB);
+        if (argc == 1) {
+            if (worker->userPerms.contains("computers")) {
+                approvePend.prepare(R"(
+                    INSERT OR REPLACE INTO Clients
+                      (`User_Key`
+                      ,`Client_Name`
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,`Updt_User`)
+                    SELECT c.`User_Key`
+                      ,`Client_Name`
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,u.`FullName`
+                    FROM `Pending_Clients` c
+                    JOIN `Users` u
+                    ON c.`Pending_Client_Key` = ? AND u.`User_Key` = ?)");
+            } else {
+                approvePend.prepare(R"(
+                    INSERT OR REPLACE INTO Clients
+                      (`User_Key`
+                      ,`Client_Name`
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,`Updt_User`)
+                    SELECT c.`User_Key`
+                      ,`Client_Name`
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,u.`FullName`
+                    FROM `Pending_Clients` c
+                    JOIN `Users` u
+                    ON c.`Pending_Client_Key` = ? AND c.`User_Key` = ? AND u.`User_Key` = c.`User_Key`)");
+            }
+            approvePend.addBindValue(pendingClientKey);
+            approvePend.addBindValue(worker->userKey);
+        } else {
+            if (worker->userPerms.contains("computers")) {
+                approvePend.prepare(R"(
+                    INSERT OR REPLACE INTO Clients
+                      (`User_Key`
+                      ,`Client_Name`
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,`Updt_User`)
+                    SELECT c.`User_Key`
+                      ,? as Client_Name
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,u.`FullName`
+                    FROM `Pending_Clients` c
+                    JOIN `Users` u
+                    ON c.`Pending_Client_Key` = ? AND u.`User_Key` = ?)");
+            } else {
+                approvePend.prepare(R"(
+                    INSERT OR REPLACE INTO Clients
+                      (`User_Key`
+                      ,`Client_Name`
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,`Updt_User`)
+                    SELECT c.`User_Key`
+                      ,? as Client_Name
+                      ,`Client_Cert`
+                      ,`Client_Info`
+                      ,u.`FullName`
+                    FROM `Pending_Clients` c
+                    JOIN `Users` u
+                    ON c.`Pending_Client_Key` = ? AND c.`User_Key` = ? AND u.`User_Key` = c.`User_Key`)");
+            }
+            approvePend.addBindValue(QString(ph7_value_to_string(argv[1], NULL)));
+            approvePend.addBindValue(pendingClientKey);
+            approvePend.addBindValue(worker->userKey);
+        }
+        if (approvePend.exec()) {
+            if (approvePend.numRowsAffected() == 0) {
+                ph7_result_string(pCtx, "The computer was not approved. The computer may already be approved or you may not have permissions to approve such computers.", -1);
+            } else {
+                QSqlQuery delApproved(worker->configDB);
+                delApproved.prepare("DELETE FROM `Pending_Clients` WHERE `Pending_Client_Key` = ?");
+                delApproved.addBindValue(pendingClientKey);
+                if (delApproved.exec()) {
+                    ph7_result_string(pCtx, "OK", -1);
+                } else {
+                    Log::error(Log::Categories["Web Server"], "Error while deleting an approved pending computer: {0}", ToChr(approvePend.lastError().text()));
+                    ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while deleting an approved pending computer.");
+                }
+            }
+        } else {
+            Log::error(Log::Categories["Web Server"], "Error while approving a pending computer: {0}", ToChr(approvePend.lastError().text()));
+            ph7_context_throw_error(pCtx, PH7_CTX_ERR, "Internal error while approving a pending computer.");
+        }
+    }
+
+    return PH7_OK;
+}
+
 // TODO: Read this from file?
 #define HTTP_500_RESPONSE "HTTP/1.1 500 Internal Server Error\r\n" \
                           "Connection: close\r\n\r\n" \
@@ -321,7 +486,6 @@ void SSNFSWorker::processHttpRequest(char firstChar)
             socket->write(HTTP_500_RESPONSE);
             return;
         }
-        /* Compile the PHP test program defined above */
         rc = ph7_compile_file(
                     pEngine,
                     ToChr(FinalPath),
@@ -443,6 +607,26 @@ void SSNFSWorker::processHttpRequest(char firstChar)
         if( rc != PH7_OK ) {
             socket->write(HTTP_500_RESPONSE);
             Log::error(Log::Categories["Web Server"], "Error while setting up get_connected() function in PH7.");
+            return;
+        }
+        rc = ph7_create_function(
+                    pVm,
+                    "get_pending",
+                    PH7GetPending,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up get_pending() function in PH7.");
+            return;
+        }
+        rc = ph7_create_function(
+                    pVm,
+                    "approve_pending",
+                    PH7ApprovePending,
+                    this);
+        if( rc != PH7_OK ) {
+            socket->write(HTTP_500_RESPONSE);
+            Log::error(Log::Categories["Web Server"], "Error while setting up approve_pending() function in PH7.");
             return;
         }
 

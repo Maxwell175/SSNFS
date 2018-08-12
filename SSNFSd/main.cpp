@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
 
     server.listen(QHostAddress::Any, dbPort);
 
-    app.exec();
+    return app.exec();
 }
 
 QSqlDatabase getConfDB() {

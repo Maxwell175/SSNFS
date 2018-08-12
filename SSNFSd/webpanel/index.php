@@ -10,6 +10,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Dashboard - SSNFS</title>
 
@@ -28,6 +29,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui-touch-punch/0.2.3/jquery.ui.touch-punch.min.js" integrity="sha384-MI/QivrbkVVJ89UOOdqJK/w6TLx0MllO/LsQi9KvvJFuRHGbYtsBvbGSM8JHKCS0" crossorigin="anonymous"></script>
+
+    <script src="SpeechBubbleJS/SpeechBubble.js"></script>
+    <link rel="stylesheet" href="SpeechBubbleJS/SpeechBubble.css">
 
     <style>
         body {
@@ -75,9 +79,25 @@
             padding: 3px !important;
         }
 
-        .no-connections {
+        .no-data {
             color: darkgray;
             text-align: center;
+        }
+
+        .speech-bubble-main {
+            z-index: 1001;
+            padding: 17px 15px 12px 15px
+        }
+        .closeBtn {
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            font-size: 0.7em;
+            color: white;
+            background-color: darkred;
+            padding: 5px 5px 4px 5px;
+            border-radius: 4px;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -118,7 +138,7 @@
                         </tbody>
                     </table>
                     <?php if (!isset($client)): ?>
-                        <div class="no-connections">There are no active connections.</div>
+                        <div class="no-data">There are no active connections.</div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -138,58 +158,25 @@
                         </tr>
                         </thead>
                         <tbody>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
-                        <tr>
-                            <td>Test User</td>
-                            <td>Test Computer</td>
-                            <td class="moreinfo-icon"><a href="#"><i class="fas fa-info-circle"></i></a></td>
-                        </tr>
+                        <?php foreach(get_pending() as $pendClient): ?>
+                            <tr>
+                                <td><?php echo $pendClient["userName"]; ?></td>
+                                <td><?php echo $pendClient["clientName"]; ?></td>
+                                <td class="moreinfo-icon"><a href="javascript:void(0)" onclick='window.showCompApprove(this,
+                                    <?php echo json_encode($pendClient["pendingClientKey"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+                                    <?php echo json_encode($pendClient["userName"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+                                    <?php echo json_encode($pendClient["clientName"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+                                    <?php echo json_encode($pendClient["submitTmStmp"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+                                    <?php echo json_encode($pendClient["submitHost"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>)'>
+                                        <i class="fas fa-info-circle"></i></a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <?php if (!isset($pendClient)): ?>
+                        <div class="no-data">There are no pending computer approvals.</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -203,7 +190,46 @@
         handle: '.panel-heading',
         cursor: 'grabbing',
         connectWith: '.container .col-md-6',
+        start: function() {
+            if (window.currApprovalInfo && window.currApprovalInfo.iframe)
+                window.currApprovalInfo.iframe.style.pointerEvents = 'none';
+        },
+        stop: function() {
+            if (window.currApprovalInfo && window.currApprovalInfo.iframe)
+                window.currApprovalInfo.iframe.style.pointerEvents = '';
+        }
     });
+
+    window.currApprovalInfo = {};
+    window.showCompApprove = function(caller, pendingClientKey, userName, clientName, submitTmStmp, submitHost) {
+        OpenSpeechBubbles.forEach(function(bubble) { bubble.removeBubble(); });
+        var approveFrame = document.createElement("iframe");
+        approveFrame.src = "approve.php";
+        approveFrame.style.border = '0';
+        approveFrame.width = '350';
+        approveFrame.height = '168';
+        window.currApprovalInfo.pendingClientKey = pendingClientKey;
+        window.currApprovalInfo.userName = userName;
+        window.currApprovalInfo.clientName = clientName;
+        window.currApprovalInfo.submitTmStmp = new Date(submitTmStmp*1000);
+        window.currApprovalInfo.submitHost = submitHost;
+        window.currApprovalInfo.iframe = approveFrame;
+        window.currApprovalInfo.approveWindow = SpeechBubble(caller, approveFrame);
+        var closeBtn = document.createElement('i');
+        closeBtn.className = 'fas fa-times closeBtn';
+        window.currApprovalInfo.approveWindow.appendChild(closeBtn);
+        document.documentElement.onclick = null;
+
+        setTimeout(function () {
+            document.documentElement.onclick = function (ev) {
+                if (ev.target != window.currApprovalInfo.approveWindow) {
+                    OpenSpeechBubbles.forEach(function(bubble) { bubble.removeBubble(); });
+                    document.documentElement.onclick = null;
+                }
+            }
+        }, 1);
+
+    }
 </script>
 </body>
 </html>

@@ -5,3 +5,7 @@
 	path = SSNFSd/webpanel/crypto-js
 	url = https://github.com/MDTech-us-MAN/crypto-js.git
 	branch = master
+[submodule "SSNFSd/webpanel/SpeechBubbleJS"]
+	path = SSNFSd/webpanel/SpeechBubbleJS
+	url = https://github.com/MDTech-us-MAN/SpeechBubble.js.git
+	branch = master
