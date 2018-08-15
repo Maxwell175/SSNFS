@@ -149,16 +149,16 @@ bool SSNFSWorker::isValidPath(QString path){
         path.truncate(path.length()-1);
     }
 
-    QStringList directories = path.split("/");
+    QStringList directories = path.split("/",QString::SkipEmptyParts);
 
     qint8 counter = 0;
 
-    for (int i = 1; i < directories.size(); ++i){
+    for (int i = 0; i < directories.size(); ++i){
             if (directories.at(i) == ".."){
                  counter--;
                 if (counter < 0) return false;
             }
-            else
+            else if (directories.at(i) != '.')
                  counter++;
      }
      return true;
