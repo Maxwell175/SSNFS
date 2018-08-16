@@ -66,7 +66,7 @@ public:
     quint16 httpResultCode = 200;
     QHash<quint16, QString> knownResultCodes;
     QVector<QString> userPerms;
-    bool isValidPath(QString path);
+
     void handleRegistration();
 
 private:
