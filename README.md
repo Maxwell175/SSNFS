@@ -15,23 +15,15 @@ The reason I started this project is because currently, there is no network file
 This project's goal is to create a simple way to mount a directory located on a server to one or more clients using the most security conscientious way available.
 
 ## Progress
-
  * Read only mode (Completed) 
  * Read Write mode (Completed) 
  * Configuration (Completed)
  * Managment interface (In Progress)
  
 ## Building
-
-Before starting, please install the sqlite3 command line tool. (`apt install sqlite3`)
-
-Then, clone the repository as well as the submodules: `git clone --recursive https://github.com/MDTech-us-MAN/SSNFS.git` 
+First, clone the repository as well as the submodules: `git clone --recursive https://github.com/MDTech-us-MAN/SSNFS.git` 
 
 Or, if you already cloned the repository, but forgot to include `--recursive`, just run the following commands in the repository directory: `git submodule update --init --recursive`
-
-After cloning the repository, execute `sh addHooks.sh` to add the required hooks.
-
-Finally, manually execute the post-merge hook the first time: `sh post-merge`
 
 By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
 If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
@@ -64,13 +56,15 @@ sudo make install
 ```
 
 ## Usage
+To set up the server, simply run the server executable with the `--init` option. This will start an interactive configuration system.
 
-Unfortunatly, a proper managment interface is not ready yet. It is currently activly being developed and should be ready soon. Until then, please edit the config.db using a SQLite3 capable editor. To properly use the FS, you must at least edit the Settings table and the Shares table.
+To register a client with the server, run `SSNFS-client register <Server Host>:<Server Port>`.
+
+Unfortunatly, a complete managment interface is not fully ready yet. It is currently activly being developed and should be ready soon. Until then, there may be some cases where you may need to edit the config.db using a SQLite3 capable editor.
 
 On the client side, simply use the standard mount syntax: `SSNFS-client <Server Host>:<Server Port>/<Share Name> <Mount Directory>`
 
 ## Contributing
-
 Please let us know on Gitter what you are working on so we can better coordinate our efforts.
 
 ## Coding style
