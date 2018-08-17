@@ -188,18 +188,25 @@ static int PH7GetConnected(ph7_context *pCtx,int argc,ph7_value **argv) {
     ph7_value *clients = ph7_context_new_array(pCtx);
     foreach (const QObject *currChild, worker->parent()->children()) {
         if (currChild->objectName() == "Connected") {
-            SSNFSWorker *currWorker = (SSNFSWorker*)currChild;
+            const SSNFSWorker *currWorker = (const SSNFSWorker*)currChild;
             if (worker->userPerms.contains("connected") == false && currWorker->userKey != worker->userKey)
                 continue;
-            qInfo() << currWorker->clientName;
-            qInfo() << currWorker->userName;
             ph7_value *clientInfo = ph7_context_new_array(pCtx);
+            ph7_value *userKeyVal = ph7_context_new_scalar(pCtx);
+            ph7_value_int64(userKeyVal, worker->userKey);
+            ph7_array_add_strkey_elem(clientInfo, "userKey", userKeyVal);
             ph7_value *userNameVal = ph7_context_new_scalar(pCtx);
             ph7_value_string(userNameVal, ToChr(currWorker->userName), -1);
             ph7_array_add_strkey_elem(clientInfo, "userName", userNameVal);
+            ph7_value *clientKeyVal = ph7_context_new_scalar(pCtx);
+            ph7_value_int64(clientKeyVal, worker->clientKey);
+            ph7_array_add_strkey_elem(clientInfo, "clientKey", clientKeyVal);
             ph7_value *clientNameVal = ph7_context_new_scalar(pCtx);
             ph7_value_string(clientNameVal, ToChr(currWorker->clientName), -1);
             ph7_array_add_strkey_elem(clientInfo, "clientName", clientNameVal);
+            ph7_value *shareKeyVal = ph7_context_new_scalar(pCtx);
+            ph7_value_int64(shareKeyVal, worker->shareKey);
+            ph7_array_add_strkey_elem(clientInfo, "shareKey", shareKeyVal);
             ph7_value *shareNameVal = ph7_context_new_scalar(pCtx);
             ph7_value_string(shareNameVal, ToChr(currWorker->shareName), -1);
             ph7_array_add_strkey_elem(clientInfo, "shareName", shareNameVal);

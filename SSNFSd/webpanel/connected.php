@@ -12,7 +12,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Login - SSNFS</title>
+    <title>Connected Computers - SSNFS</title>
 
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.13/css/all.css" integrity="sha384-DNOHZ68U8hZfKXOrtjWvjxusGo9WQnrNx2sqG0tfsghAvtVlRW3tvkXWZh58N9jp" crossorigin="anonymous">
 
@@ -29,22 +29,63 @@
             padding-top: 20px;
             padding-bottom: 20px;
         }
+
+        .panel-default>.panel-heading {
+            color: #fff;
+            background-color: #1d233a;
+            cursor: move;
+        }
+
+        .panel-title {
+            font-size: 1em;
+            font-weight: bold;
+        }
+
+        .panel-body {
+            min-height: 215px;
+            padding: 0 15px;
+        }
+
+        .no-data {
+            color: darkgray;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+<div class="container">
 
-        <?php include_once("navbar.php"); ?>
+    <?php include_once("navbar.php"); ?>
 
-        <!-- Main component for a primary marketing message or call to action -->
-        <div class="jumbotron">
-            <h1>Navbar example</h1>
-            <p>This example is a quick exercise to illustrate how the default, static navbar and fixed to top navbar work. It includes the responsive CSS and HTML, so it also adapts to your viewport and device.</p>
-            <p>
-                <a class="btn btn-lg btn-primary" href="../../components/#navbar" role="button">View navbar docs &raquo;</a>
-            </p>
+    <div class="panel panel-default" id="Widget_ConnectedClients">
+        <div class="panel-heading">
+            <h2 class="panel-title">Connected Computers</h2>
         </div>
+        <div class="panel-body">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Computer</th>
+                    <th>Share</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach(get_connected() as $client): ?>
+                    <tr>
+                        <td><a href="users.php?key=<?php echo $client["userKey"]; ?>"><?php echo $client["userName"]; ?></a></td>
+                        <td><a href="computers.php?key=<?php echo $client["clientKey"]; ?>"><?php echo $client["clientName"]; ?></a></td>
+                        <td><a href="shares.php?key=<?php echo $client["shareKey"]; ?>"><?php echo $client["shareName"]; ?></a></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php if (!isset($client)): ?>
+                <div class="no-data">There are no active connections.</div>
+            <?php endif; ?>
+        </div>
+    </div>
 
-    </div> <!-- /container -->
+</div> <!-- /container -->
 </body>
 </html>
