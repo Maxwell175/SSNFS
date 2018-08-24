@@ -14101,6 +14101,7 @@ struct json_private_data
 	int isFirst;       /* True if first encoded entry */
 	int iFlags;        /* JSON encoding flags */
 	int nRecCount;     /* Recursion count */
+    int isObject;
 };
 /*
  * Returns the JSON representation of a value.In other word perform a JSON encoding operation.
@@ -14194,21 +14195,25 @@ static sxi32 VmJsonEncode(
 				/* Append the double quote */
 				ph7_result_string(pCtx,"\"",(int)sizeof(char));
 			}
-		}else if( ph7_value_is_array(pIn) ){
-			int c = '[',d = ']';
+        }else if( ph7_value_is_array(pIn) ){
 			/* Encode the array */
 			pData->isFirst = 1;
-			if( iFlags & JSON_FORCE_OBJECT ){
-				/* Outputs an object rather than an array */
-				c = '{';
-				d = '}';
-			}
-			/* Append the square bracket or curly braces */
-			ph7_result_string(pCtx,(const char *)&c,(int)sizeof(char));
-			/* Iterate throw array entries */
-			ph7_array_walk(pIn,VmJsonArrayEncode,pData);
-			/* Append the closing square bracket or curly braces */
-			ph7_result_string(pCtx,(const char *)&d,(int)sizeof(char));
+            pData->isObject = 0;
+            if (ph7_array_count(pIn) == 0) {
+                if (iFlags & JSON_FORCE_OBJECT)
+                    ph7_result_string(pCtx,"{",(int)sizeof(char));
+                else
+                    ph7_result_string(pCtx,"[",(int)sizeof(char));
+            } else {
+                /* Iterate throw array entries */
+                ph7_array_walk(pIn,VmJsonArrayEncode,pData);
+            }
+            /* Append the applicable ending */
+            if (pData->isObject == 1) {
+                ph7_result_string(pCtx,"}",(int)sizeof(char));
+            } else {
+                ph7_result_string(pCtx,"]",(int)sizeof(char));
+            }
 		}else if( ph7_value_is_object(pIn) ){
 			/* Encode the class instance */
 			pData->isFirst = 1;
@@ -14239,8 +14244,16 @@ static int VmJsonArrayEncode(ph7_value *pKey,ph7_value *pValue,void *pUserData)
 	if( !pJson->isFirst ){
 		/* Append the colon first */
 		ph7_result_string(pJson->pCtx,",",(int)sizeof(char));
-	}
-	if( pJson->iFlags & JSON_FORCE_OBJECT ){
+    } else if( pJson->iFlags & JSON_FORCE_OBJECT || ph7_value_is_string(pKey)) {
+        pJson->isObject = 1;
+        /* Append the curly braces */
+        ph7_result_string(pJson->pCtx,"{",(int)sizeof(char));
+    } else {
+        pJson->isObject = 0;
+        /* Append the square braces */
+        ph7_result_string(pJson->pCtx,"[",(int)sizeof(char));
+    }
+    if( pJson->isObject == 1 ){
 		/* Outputs an object rather than an array */
 		const char *zKey;
 		int nByte;
@@ -14251,7 +14264,9 @@ static int VmJsonArrayEncode(ph7_value *pKey,ph7_value *pValue,void *pUserData)
 	}
 	/* Encode the value */
 	pJson->nRecCount++;
+    int isObject = pJson->isObject;
 	VmJsonEncode(pValue,pJson);
+    pJson->isObject = isObject;
 	pJson->nRecCount--;
 	pJson->isFirst = 0;
 	return PH7_OK;
