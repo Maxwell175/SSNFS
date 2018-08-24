@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS "Users" (
         `Email`	TEXT NOT NULL UNIQUE,
         `Password_Hash`	TEXT NOT NULL,
         `Updt_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        `Crtd_TmStmp`	INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP
+        `Updt_User`	TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS "User_Roles" (
         `User_Key`  INTEGER NOT NULL,

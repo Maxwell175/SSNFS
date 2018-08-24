@@ -6,7 +6,7 @@
  * Copyright 2018 Maxwell Dreytser
  *
 -->
-<?php include_once("check-cookie.php"); ?>
+<?php include_once("check-cookie.php"); if (http_response_code() == 303) exit; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>

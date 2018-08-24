@@ -25,8 +25,6 @@
 #define STR(tok) STR_EXPAND(tok)
 #define HELLO_STR "SSNFS server version " STR(_SERVER_VERSION)
 
-#define ToChr(x) x.toUtf8().data()
-
 SSNFSWorker::SSNFSWorker(int socketDescriptor, QObject *parent)
     : QThread(parent), socketDescriptor(socketDescriptor)
 {

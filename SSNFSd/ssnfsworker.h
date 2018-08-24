@@ -67,6 +67,9 @@ public:
     QHash<quint16, QString> knownResultCodes;
     QVector<QString> userPerms;
 
+    // SaveShares
+
+
     void handleRegistration();
 
 private:

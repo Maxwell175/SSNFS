@@ -29,7 +29,7 @@
 
 #include <fastpbkdf2.h>
 
-#define ToChr(x) x.toUtf8().data()
+#define ToChr(x) (x).toUtf8().data()
 
 namespace Common {
 const quint8 MAX_RESULTCODE = 5;
