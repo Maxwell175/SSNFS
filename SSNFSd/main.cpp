@@ -36,16 +36,18 @@ int main(int argc, char *argv[])
     qSetMessagePattern("%{file}:%{line} - %{message}");
 
     if (app.arguments().contains("-h", Qt::CaseInsensitive) || app.arguments().contains("--help", Qt::CaseInsensitive)) {
-        qInfo() << QFileInfo(app.applicationFilePath()).fileName() << "[OPTIONS]";
-        qInfo() << "    --help, -h                  Show this help text.";
-        qInfo() << "    --init                      Starts an interactive initialization procedure.";
-        qInfo() << "    ";
-        qInfo() << "    --set-pkey-file=<path>      Set server private key to the specified file.";
-        qInfo() << "    --set-cert-file=<path>      Set server certificate to the specified file.";
-        qInfo() << "    --hash-password-salt=<salt> When manually hasing a password (below) use this salt.";
-        qInfo() << "                            Must be specified before --hash-password.";
-        qInfo() << "    --hash-password=<password>  Return a hashed version of the specified password.";
-        qInfo() << "Note: Will exit after setting the private key or certificate, or manually generating a hashed password.";
+        QTextStream out(stdout);
+        out << QFileInfo(app.applicationFilePath()).fileName() << " [OPTIONS]" << endl;
+        out << "    --help, -h                  Show this help text." << endl;
+        out << "    --init                      Starts an interactive initialization procedure." << endl;
+        out << "    " << endl;
+        out << "    --set-pkey-file=<path>      Set server private key to the specified file." << endl;
+        out << "    --set-cert-file=<path>      Set server certificate to the specified file." << endl;
+        out << "    --hash-password-salt=<salt> When manually hasing a password (below) use this salt." << endl;
+        out << "                            Must be specified before --hash-password." << endl;
+        out << "    --hash-password=<password>  Return a hashed version of the specified password." << endl;
+        out << "Note: Will exit after setting the private key or certificate, or manually generating a hashed password." << endl;
+	out.flush();
         return 0;
     }
     bool willExit = false;
