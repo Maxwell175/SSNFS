@@ -17,6 +17,7 @@ isEmpty(PREFIX) {
 
 system("echo DEFINES += ISGLOBAL=1 > $$OUT_PWD/.qmake.cache")
 system("echo PREFIX = $$PREFIX >> $$OUT_PWD/.qmake.cache")
+CONFIG(release, debug|release):system("echo DEFINES += QT_NO_DEBUG_OUTPUT >> $$OUT_PWD/.qmake.cache")
 QMAKE_DISTCLEAN += $$OUT_PWD/.qmake.cache
 
 SUBDIRS += fastpbkdf2
