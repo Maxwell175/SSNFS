@@ -23,7 +23,9 @@ This project's goal is to create a simple way to mount a directory located on a 
 ## Building
 First, clone the repository as well as the submodules: `git clone --recursive https://github.com/MDTech-us-MAN/SSNFS.git` 
 
-Or, if you already cloned the repository, but forgot to include `--recursive`, just run the following commands in the repository directory: `git submodule update --init --recursive`
+Or, if you already cloned the repository, but forgot to include `--recursive`, just run the following command in the repository directory: `git submodule update --init --recursive`
+
+Before building, be sure to have Qt5 (`qt5-default` in Ubuntu) and libssl (`libssl-dev` in Ubuntu) already installed. For the client, you will also need libfuse2 (`libfuse-dev` in Ubuntu).
 
 By default the PREFIX is set to /usr/local for release builds or the build directory for debug builds.
 If you would like to change this, simply add PREFIX=\<new path\> to the qmake line.
@@ -57,6 +59,8 @@ sudo make install
 
 ## Usage
 To set up the server, simply run the server executable with the `--init` option. This will start an interactive configuration system.
+
+To access the server's web administration panel, just point your web browser to HTTPS port 2050 of the server.
 
 To register a client with the server, run `SSNFS-client register <Server Host>:<Server Port>`.
 
