@@ -455,5 +455,5 @@ free_all:
         ConsoleOut << "Failed to add role user: " << addUser.lastError().text() << endl;
     }
 
-    ConsoleOut << endl << "Your SSNFS server is now ready for use.";
+    ConsoleOut << endl << "Your SSNFS server is now ready for use." << endl;
 }
