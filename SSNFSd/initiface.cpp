@@ -437,8 +437,8 @@ free_all:
 
     QSqlQuery addUser(configDB);
     addUser.prepare(R"(
-        INSERT OR REPLACE INTO `Users`(FullName, Email, Password_Hash)
-        VALUES (?, ?, ?);)");
+        INSERT OR REPLACE INTO `Users`(FullName, Email, Password_Hash, Updt_User)
+        VALUES (?, ?, ?, 'Init');)");
     addUser.addBindValue(adminName);
     addUser.addBindValue(adminEmail);
     addUser.addBindValue(adminEncPass);
