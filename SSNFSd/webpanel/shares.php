@@ -213,7 +213,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                             </div>
                         </div>
                         <div class="form-group clearfix">
-                            <label class="col-sm-2 control-label" for="localPath">
+                            <label class="col-sm-2 control-label">
                                 Permitted Users
                             </label>
                             <div class="col-sm-10">
@@ -379,9 +379,10 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                         newUserDiv.appendChild(userName);
                         var permsdiv = document.createElement('div');
                         permsdiv.className = 'col-sm-5';
+                        permsdiv.style.textAlign = 'center';
                         var readPerm = document.createElement('div');
                         readPerm.className = 'col-sm-3';
-                        readPerm.innerHTML = 'Read ';
+                        readPerm.innerHTML = 'Read<br>';
                         var readBox = document.createElement('input');
                         readBox.type = 'checkbox';
                         readBox.onclick = function (ev) {
@@ -396,7 +397,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                         permsdiv.appendChild(readPerm);
                         var writePerm = document.createElement('div');
                         writePerm.className = 'col-sm-3';
-                        writePerm.innerHTML = 'Write ';
+                        writePerm.innerHTML = 'Write<br>';
                         var writeBox = document.createElement('input');
                         writeBox.type = 'checkbox';
                         writeBox.onclick = function (ev) {
@@ -411,7 +412,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                         permsdiv.appendChild(writePerm);
                         var executePerm = document.createElement('div');
                         executePerm.className = 'col-sm-3';
-                        executePerm.innerHTML = 'Execute ';
+                        executePerm.innerHTML = 'Execute<br>';
                         var executeBox = document.createElement('input');
                         executeBox.type = 'checkbox';
                         executeBox.onclick = function (ev) {
@@ -426,7 +427,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                         permsdiv.appendChild(executePerm);
                         var ownerPerm = document.createElement('div');
                         ownerPerm.className = 'col-sm-3';
-                        ownerPerm.innerHTML = 'Owner ';
+                        ownerPerm.innerHTML = 'Owner<br>';
                         var ownerBox = document.createElement('input');
                         ownerBox.type = 'checkbox';
                         ownerBox.onclick = function (ev) {
