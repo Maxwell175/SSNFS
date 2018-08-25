@@ -277,9 +277,10 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                             currUser.appendChild(userName);
                             var permsdiv = document.createElement('div');
                             permsdiv.className = 'col-sm-5';
+                            permsdiv.style.textAlign = 'center';
                             var readPerm = document.createElement('div');
                             readPerm.className = 'col-sm-3';
-                            readPerm.innerHTML = 'Read ';
+                            readPerm.innerHTML = 'Read<br>';
                             var readBox = document.createElement('input');
                             readBox.type = 'checkbox';
                             readBox.checked = value.defaultPerms.indexOf('r') > -1;
@@ -293,7 +294,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                             permsdiv.appendChild(readPerm);
                             var writePerm = document.createElement('div');
                             writePerm.className = 'col-sm-3';
-                            writePerm.innerHTML = 'Write ';
+                            writePerm.innerHTML = 'Write<br>';
                             var writeBox = document.createElement('input');
                             writeBox.type = 'checkbox';
                             writeBox.checked = value.defaultPerms.indexOf('w') > -1;
@@ -307,7 +308,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                             permsdiv.appendChild(writePerm);
                             var executePerm = document.createElement('div');
                             executePerm.className = 'col-sm-3';
-                            executePerm.innerHTML = 'Execute ';
+                            executePerm.innerHTML = 'Execute<br>';
                             var executeBox = document.createElement('input');
                             executeBox.type = 'checkbox';
                             executeBox.checked = value.defaultPerms.indexOf('x') > -1;
@@ -321,7 +322,7 @@ if (isset($_POST["shareKey"]) && is_numeric($_POST["shareKey"]) && isset($_POST[
                             permsdiv.appendChild(executePerm);
                             var ownerPerm = document.createElement('div');
                             ownerPerm.className = 'col-sm-3';
-                            ownerPerm.innerHTML = 'Owner ';
+                            ownerPerm.innerHTML = 'Owner<br>';
                             var ownerBox = document.createElement('input');
                             ownerBox.type = 'checkbox';
                             ownerBox.checked = value.defaultPerms.indexOf('o') > -1;
