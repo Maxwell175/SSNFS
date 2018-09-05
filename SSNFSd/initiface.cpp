@@ -184,10 +184,15 @@ InitIface::InitIface(QObject *parent) : QObject(parent)
         // free
 free_all:
         BIO_free_all(pkeywriter);
+        pkeywriter = nullptr;
         BIO_free_all(certwriter);
-        RSA_free(rsa);
+        certwriter = nullptr;
+        // Do not delete rsa since it will be deleted with pkey
+        rsa = nullptr;
         BN_free(bne);
+        bne = nullptr;
         EVP_PKEY_free(pkey);
+        pkey = nullptr;
 
         if (ret != 1) {
             ConsoleOut << "Failed.\n" << ERR_error_string(ERR_get_error(), NULL) << endl;
