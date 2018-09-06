@@ -49,7 +49,7 @@ class FuseClient : public QObject
 {
     Q_OBJECT
 public:
-    explicit FuseClient(QObject *parent = 0);
+    explicit FuseClient(QObject *parent = nullptr);
 
 private:
     QString mountPath;

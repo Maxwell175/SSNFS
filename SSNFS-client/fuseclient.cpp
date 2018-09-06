@@ -575,31 +575,19 @@ int FuseClient::fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     socket->write(path);
     socket->waitForBytesWritten(-1);
 
-    res = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
-    if (res != 0) {
-        return res;
-    }
+    int entryCount = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
 
-    int direntCount = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+    for (int i = 0; i < entryCount; i++) {
+        qint32 entryLen = Common::getInt32FromBytes(Common::readExactBytes(socket, 4));
+        QByteArray entry = Common::readExactBytes(socket, entryLen);
 
-    QByteArray reply = Common::readExactBytes(socket, sizeof(struct dirent) * direntCount);
-
-    struct dirent *dirents = (struct dirent*)reply.data();
-
-    for (int i = 0; i < direntCount; i++) {
-        struct dirent de = dirents[i];
-
-        struct stat st;
-        memset(&st, 0, sizeof(st));
-        st.st_ino = de.d_ino;
-        st.st_mode = de.d_type << 12;
-        if (filler(buf, de.d_name, &st, 0))
+        if (filler(buf, entry.data(), NULL, 0))
             break;
     }
 
     qDebug() << "readdir " << path << ": Done" << timer.elapsed();
 
-    return res;
+    return 0;
 }
 
 int FuseClient::fs_open(const char *path, struct fuse_file_info *fi)

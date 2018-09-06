@@ -504,25 +504,23 @@ void SSNFSWorker::ReadyToRead()
             }
             res = 0;
 
-            QVector<struct dirent> dirents;
+            QVector<QString> entries;
 
             while ((de = readdir(dp)) != NULL) {
-                dirents.append(*de);
-            }
-
-            struct dirent outDirents[dirents.length()];
-
-            for (int i = 0; i < dirents.length(); i++) {
-                outDirents[i] = dirents[i];
+                entries.append(tr(de->d_name));
             }
 
             closedir(dp);
 
-            socket->write(Common::getBytes(res));
+            qint32 entryCount = entries.length();
 
-            socket->write(Common::getBytes(dirents.length()));
+            socket->write(Common::getBytes(entryCount));
 
-            socket->write((char*)(&outDirents), sizeof(outDirents));
+            for (int i = 0; i < entryCount; i++) {
+                QByteArray entry = entries[i].toUtf8();
+                socket->write(Common::getBytes((qint32)entry.length()));
+                socket->write(entry);
+            }
 
             status = WaitingForOperation;
 
